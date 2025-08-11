@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import LandingPage from './components/LandingPage';
-import Dashboard from './components/Dashboard';
-import ClientPortal from './components/ClientPortal';
-import { supabase, isSupabaseConfigured, type ClientInsert, type ClientUpdate } from './services/supabaseClient';
-import type { Client } from './types';
+import LandingPage from './components/LandingPage.tsx';
+import Dashboard from './components/Dashboard.tsx';
+import ClientPortal from './components/ClientPortal.tsx';
+import { supabase, isSupabaseConfigured, type ClientInsert, type ClientUpdate } from './services/supabaseClient.ts';
+import type { Client } from './types.ts';
 import type { Session } from '@supabase/supabase-js';
-import { Button, Spinner, Card } from './components/ui/common';
+import { Button, Spinner, Card } from './components/ui/common.tsx';
 
 
 function App() {
@@ -75,7 +75,7 @@ function App() {
     const { id, created_at, ...updateData } = updatedClient;
     const { data, error } = await supabase
       .from('clients')
-      .update(updateData as unknown as ClientUpdate)
+      .update(updateData)
       .eq('id', updatedClient.id)
       .select()
       .single();
@@ -92,7 +92,7 @@ function App() {
   const handleAddClient = useCallback(async (newClient: Omit<Client, 'id' | 'created_at'>) => {
       const { data, error } = await supabase
         .from('clients')
-        .insert([newClient as unknown as ClientInsert]) // insert expects an array
+        .insert([newClient]) // insert expects an array
         .select()
         .single();
     
