@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import LandingPage from './components/LandingPage.tsx';
-import Dashboard from './components/Dashboard.tsx';
-import ClientPortal from './components/ClientPortal.tsx';
+import LandingPage from './components/LandingPage';
+import Dashboard from './components/Dashboard';
+import ClientPortal from './components/ClientPortal';
 import { supabase, isSupabaseConfigured, type ClientInsert, type ClientUpdate } from './services/supabaseClient.ts';
 import type { Client } from './types.ts';
 import type { Session } from '@supabase/supabase-js';
-import { Button, Spinner, Card } from './components/ui/common.tsx';
+import { Button, Spinner, Card } from './components/ui/common';
 
 
 function App() {
