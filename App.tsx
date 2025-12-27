@@ -8,6 +8,7 @@ import type { Client } from './types.ts';
 import type { Session } from '@supabase/supabase-js';
 import { Button, Spinner, Card } from './components/ui/common';
 
+const coachEmail = "tbone1989@gmail.com";
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
