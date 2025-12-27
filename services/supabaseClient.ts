@@ -60,8 +60,8 @@ export type Database = {
 
 // The Supabase URL and Key MUST be obtained exclusively from environment variables.
 // The app's execution environment is responsible for providing these.
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;  ;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
