@@ -36,7 +36,8 @@ function App() {
   useEffect(() => {
     if(session?.user) {
         // Simple logic to determine role. In a real app, this might come from user_metadata.
-        const coachEmail = 'coach@rippedcity.com';
+        39
+          'tbone1989@gmail.com'
         setIsCoach(session.user.email === coachEmail);
     } else {
         setIsCoach(false);
