@@ -4,11 +4,17 @@ import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
 import ClientPortal from './components/ClientPortal';
 import { supabase, isSupabaseConfigured, type ClientInsert, type ClientUpdate } from './services/supabaseClient.ts';
-import type { Client } from './types.ts';
+import type { Client, SiteContent } from './types.ts';
 import type { Session } from '@supabase/supabase-js';
 import { Button, Spinner, Card } from './components/ui/common';
 
 const coachEmail = "tbone1989@gmail.com";
+
+const siteContent: SiteContent = {
+  heroImage: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1200&auto=format&fit=crop',
+  transformationBefore: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?q=80&w=800&auto=format&fit=crop',
+  transformationAfter: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=800&auto=format&fit=crop'
+};
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -138,7 +144,7 @@ function App() {
       return <div className="min-h-screen flex items-center justify-center"><Spinner /></div>;
     }
     if (!session) {
-        return <LandingPage />;
+        return <LandingPage siteContent={siteContent} />;
     }
     if (isCoach) {
         return <Dashboard onLogout={handleLogout} clients={clients} onUpdateClient={handleUpdateClient} onAddClient={handleAddClient} />;

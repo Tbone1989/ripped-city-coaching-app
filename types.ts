@@ -205,3 +205,10 @@ export interface Protocol {
   description: string;
   details: ProtocolDetailSection[];
 }
+
+export interface SiteContent {
+  heroVideo?: string;
+  heroImage: string;
+  transformationBefore: string;
+  transformationAfter: string;
+}
