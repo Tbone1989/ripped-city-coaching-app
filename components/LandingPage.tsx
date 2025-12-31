@@ -1,297 +1,493 @@
-import React, { useState, FormEvent } from 'react';
-import { Button, Input, Card, Tabs, Spinner } from './ui/common.tsx';
-import { mockTestimonials, mockClients } from '../data/mockData.ts';
-import { supabase } from '../services/supabaseClient.ts';
+
+import React, { useState, FormEvent, useEffect } from 'react';
+import { Button, Input, Card, Spinner, TextArea, Select } from './ui/common.tsx';
+import { mockTestimonials } from '../data/mockData.ts';
+import { protocols } from '../data/protocolsData.ts';
+import { supabase, isSupabaseConfigured, type ClientInsert } from '../services/supabaseClient.ts';
 import type { Provider } from '@supabase/supabase-js';
+import type { SiteContent } from '../types.ts';
 
 interface LandingPageProps {
-  isDemoMode?: boolean;
-  onDemoLogin?: (role: 'coach' | 'client', clientEmail?: string) => void;
+  siteContent: SiteContent;
+  onDemoLogin?: () => void;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ isDemoMode = false, onDemoLogin = () => {} }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  const [logoClicks, setLogoClicks] = useState(0);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // --- Multi-Step Intake State ---
+  const [showIntakeModal, setShowIntakeModal] = useState(false);
+  const [intakeStep, setIntakeStep] = useState(1);
+  const [intakeSuccess, setIntakeSuccess] = useState(false);
+  const [intakeSubmitting, setIntakeSubmitting] = useState(false);
+
+  // --- Lead Magnet State ---
+  const [showLeadMagnetModal, setShowLeadMagnetModal] = useState(false);
+
+  const [intakeData, setIntakeData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    instagram: '',
+    age: '',
+    weight: '',
+    height: '',
+    bloodType: 'Unknown',
+    goal: '',
+    experience: 'beginner',
+    struggle: '',
+    injuries: '',
+    healthConditions: '',
+    currentSupplements: '',
+    currentPharma: '',
+    commitment: '10'
+  });
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleLogoClick = () => {
+    const newCount = logoClicks + 1;
+    if (newCount >= 5) {
+      if (onDemoLogin) onDemoLogin();
+      setLogoClicks(0);
+    } else {
+      setLogoClicks(newCount);
+      setTimeout(() => setLogoClicks(0), 3000);
+    }
+  };
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-
-    const { error } = await supabase!.auth.signInWithPassword({
-        email: email,
-        password: password,
-    });
-
-    if (error) {
-        setError(error.message);
-    } 
-    // On success, the onAuthStateChange listener in App.tsx will handle the redirect.
-    setIsLoading(false);
-  };
-  
-  const handleSocialLogin = async (provider: Provider) => {
-    setIsLoading(true);
-    setError('');
-    const { error } = await supabase!.auth.signInWithOAuth({
-      provider: provider,
-    });
-    if (error) {
-        setError(`Could not log in with ${provider}: ${error.message}`);
-        setIsLoading(false);
+    if (!isSupabaseConfigured && email.toLowerCase() === 'tbone0189@gmail.com') {
+        if (onDemoLogin) { onDemoLogin(); return; }
     }
-    // On success, Supabase handles the redirect and the listener in App.tsx will do the rest.
+    if (!isSupabaseConfigured) {
+        setError("Backend services not configured.");
+        setIsLoading(false);
+        return;
+    }
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password
+      });
+      if (authError) setError(authError.message);
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleBookConsultation = () => {
-    alert('Thank you for your interest! Please contact me directly to schedule your consultation.');
+  const handleIntakeSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setIntakeSubmitting(true);
+    setError('');
+
+    const newClient: ClientInsert = {
+      name: intakeData.name,
+      email: intakeData.email,
+      goal: intakeData.goal, 
+      status: 'prospect',
+      paymentStatus: 'unpaid',
+      profile: {
+        age: intakeData.age, 
+        gender: 'male', 
+        weight: intakeData.weight, 
+        height: intakeData.height, 
+        experience: intakeData.experience as any, 
+        activityLevel: 'moderately_active', 
+        status: intakeData.currentPharma.trim() ? 'enhanced' : 'natural',
+        bloodType: intakeData.bloodType,
+        notificationPreferences: { email: true, sms: false, inApp: true }
+      },
+      intakeData: { 
+        injuries: intakeData.injuries, 
+        meds: intakeData.healthConditions, 
+        diet: '', 
+        workSchedule: '', 
+        healthConditions: intakeData.healthConditions, 
+        allergies: '',
+        phone: intakeData.phone,
+        currentSupplements: intakeData.currentSupplements,
+        currentPharma: intakeData.currentPharma
+      },
+      checkins: [],
+      generatedPlans: { mealPlans: [], workoutPlans: [] },
+      payments: [],
+      communication: { messages: [] },
+      bloodworkHistory: [],
+      clientTestimonials: [],
+      bloodDonationStatus: { status: 'Unknown', lastChecked: '', notes: '' },
+      holisticHealth: { sleepQuality: '', stressLevel: '', energyLevel: '', herbalLog: '' },
+      cardioLogs: [],
+      posingLogs: []
+    };
+
+    try {
+      if (isSupabaseConfigured) {
+          const { error: insError } = await (supabase.from('clients') as any).insert([newClient]);
+          if (insError) throw insError;
+      }
+      setIntakeSuccess(true);
+      setTimeout(() => {
+        setShowIntakeModal(false);
+        setIntakeSuccess(false);
+        setIntakeStep(1);
+      }, 3000);
+    } catch (err: any) {
+      setError('Submission failed. Please email us directly.');
+    } finally {
+      setIntakeSubmitting(false);
+    }
   };
 
-  const navLinks = [
-    { name: 'Our Story', href: '#story' },
-    { name: 'What We Offer', href: '#services' },
-    { name: 'Our Mission', href: '#mission' },
-    { name: 'Testimonials', href: '#testimonials' },
-  ];
+  const updateField = (field: string, value: string) => {
+      setIntakeData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const nextStep = () => setIntakeStep(s => s + 1);
+  const prevStep = () => setIntakeStep(s => s - 1);
 
   return (
-    <div className="bg-gray-900 text-gray-200">
-      {/* Header & Hero */}
-      <header className="relative h-screen flex flex-col items-center justify-center text-center p-4">
-        <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('https://picsum.photos/seed/fitness/1920/1080')", filter: 'blur(8px) brightness(0.4)' }}></div>
-        <div className="absolute top-0 left-0 w-full p-4 bg-gray-900/30 backdrop-blur-sm z-20">
-            <nav className="max-w-7xl mx-auto flex justify-between items-center">
-                <a href="https://rippedcityinc.com/" target="_blank" rel="noopener noreferrer" className="text-2xl font-bold text-white tracking-tight hover:text-gray-300 transition-colors">
-                  RIPPED CITY <span className="text-red-500">COACHING</span>
-                </a>
-                <div className="hidden md:flex items-center space-x-6">
-                    {navLinks.map(link => <a key={link.name} href={link.href} className="text-gray-300 hover:text-white transition">{link.name}</a>)}
-                    <Button onClick={() => document.getElementById('get-started')?.scrollIntoView({ behavior: 'smooth' })} variant="primary" className="px-4 py-2">Get Started</Button>
+    <div className="bg-gray-900 text-gray-200 font-sans">
+      
+      {showIntakeModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+          <Card className="w-full max-w-xl relative bg-[#121214] border-gray-800 shadow-2xl overflow-hidden">
+            <button onClick={() => setShowIntakeModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white z-10"><i className="fa-solid fa-times text-xl"></i></button>
+            
+            {!intakeSuccess && (
+                <div className="absolute top-0 left-0 w-full h-1 bg-gray-800">
+                    <div className="h-full bg-red-600 transition-all duration-500" style={{ width: `${(intakeStep / 5) * 100}%` }}></div>
                 </div>
-            </nav>
+            )}
+
+            {intakeSuccess ? (
+              <div className="text-center py-12 px-6">
+                <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl text-white shadow-lg shadow-green-900/50 animate-bounce">
+                    <i className="fa-solid fa-check"></i>
+                </div>
+                <h3 className="text-3xl font-black text-white mb-4 uppercase tracking-tighter italic">Application Sent!</h3>
+                <p className="text-gray-400">Tyrone will review your biological profile and protocols. Reach out via email within 24 hours to schedule your strategy call.</p>
+              </div>
+            ) : (
+              <div className="p-2 sm:p-4">
+                <div className="mb-8">
+                    <span className="text-[10px] uppercase font-black text-red-500 tracking-[0.2em]">Step {intakeStep} of 5</span>
+                    <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">
+                        {intakeStep === 1 && "The Basics"}
+                        {intakeStep === 2 && "Biological Metrics"}
+                        {intakeStep === 3 && "Performance History"}
+                        {intakeStep === 4 && "Protocol Audit"}
+                        {intakeStep === 5 && "Health & Confirmation"}
+                    </h3>
+                </div>
+
+                <form onSubmit={handleIntakeSubmit} className="space-y-6">
+                    {intakeStep === 1 && (
+                        <div className="space-y-4 animate-fade-in-up">
+                            <Input label="Full Name" value={intakeData.name} onChange={e => updateField('name', e.target.value)} required placeholder="John Doe" />
+                            <Input label="Email Address" type="email" value={intakeData.email} onChange={e => updateField('email', e.target.value)} required placeholder="john@example.com" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Input label="Phone Number" value={intakeData.phone} onChange={e => updateField('phone', e.target.value)} placeholder="(555) 000-0000" />
+                                <Input label="Instagram Handle" value={intakeData.instagram} onChange={e => updateField('instagram', e.target.value)} placeholder="@yourprofile" />
+                            </div>
+                            <Button onClick={nextStep} className="w-full mt-4" disabled={!intakeData.name || !intakeData.email}>Continue <i className="fa-solid fa-arrow-right ml-2"></i></Button>
+                        </div>
+                    )}
+
+                    {intakeStep === 2 && (
+                        <div className="space-y-4 animate-fade-in-up">
+                            <div className="grid grid-cols-2 gap-4">
+                                <Input label="Age" type="number" value={intakeData.age} onChange={e => updateField('age', e.target.value)} required />
+                                <Select label="Blood Type" value={intakeData.bloodType} onChange={e => updateField('bloodType', e.target.value)}>
+                                    <option value="Unknown">Unknown</option>
+                                    <option value="O+">O+</option>
+                                    <option value="O-">O-</option>
+                                    <option value="A+">A+</option>
+                                    <option value="A-">A-</option>
+                                    <option value="B+">B+</option>
+                                    <option value="B-">B-</option>
+                                    <option value="AB+">AB+</option>
+                                    <option value="AB-">AB-</option>
+                                </Select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <Input label="Current Weight (kg)" type="number" value={intakeData.weight} onChange={e => updateField('weight', e.target.value)} required />
+                                <Input label="Height (cm)" type="number" value={intakeData.height} onChange={e => updateField('height', e.target.value)} required />
+                            </div>
+                            <div className="flex gap-4 pt-4">
+                                <Button variant="secondary" onClick={prevStep} className="flex-1">Back</Button>
+                                <Button onClick={nextStep} className="flex-1" disabled={!intakeData.age || !intakeData.weight}>Continue</Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {intakeStep === 3 && (
+                        <div className="space-y-4 animate-fade-in-up">
+                            <Select label="Training Experience" value={intakeData.experience} onChange={e => updateField('experience', e.target.value)}>
+                                <option value="beginner">Beginner (0-1 Years)</option>
+                                <option value="intermediate">Intermediate (2-5 Years)</option>
+                                <option value="advanced">Advanced (5+ Years / Competitor)</option>
+                            </Select>
+                            <TextArea label="What is your #1 goal?" value={intakeData.goal} onChange={e => updateField('goal', e.target.value)} rows={2} required placeholder="e.g. Win my first show, lose 10kg of fat..." />
+                            <TextArea label="What has been your biggest struggle so far?" value={intakeData.struggle} onChange={e => updateField('struggle', e.target.value)} rows={2} placeholder="e.g. Consistency with meals, plateaued on lifts..." />
+                            <div className="flex gap-4 pt-4">
+                                <Button variant="secondary" onClick={prevStep} className="flex-1">Back</Button>
+                                <Button onClick={nextStep} className="flex-1" disabled={!intakeData.goal}>Continue</Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {intakeStep === 4 && (
+                        <div className="space-y-4 animate-fade-in-up">
+                            <TextArea label="Current Supplements & Vitamins" value={intakeData.currentSupplements} onChange={e => updateField('currentSupplements', e.target.value)} rows={3} placeholder="Creatine, Whey, Vitamin D, Omega 3, etc." />
+                            <TextArea label="Pharmacological Protocols (PEDs / TRT / Peptides)" value={intakeData.currentPharma} onChange={e => updateField('currentPharma', e.target.value)} rows={3} placeholder="List all current compounds, dosages, and frequency. Leave blank if natural." />
+                            <p className="text-[10px] text-gray-500 uppercase font-bold italic">* This data is used by our AI expert to identify potential interactions and optimize your results.</p>
+                            <div className="flex gap-4 pt-4">
+                                <Button variant="secondary" onClick={prevStep} className="flex-1">Back</Button>
+                                <Button onClick={nextStep} className="flex-1">Continue</Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {intakeStep === 5 && (
+                        <div className="space-y-4 animate-fade-in-up">
+                            <TextArea label="Known Health Conditions / Medications" value={intakeData.healthConditions} onChange={e => updateField('healthConditions', e.target.value)} rows={2} placeholder="List any chronic issues..." />
+                            <TextArea label="Current or Past Injuries" value={intakeData.injuries} onChange={e => updateField('injuries', e.target.value)} rows={2} placeholder="e.g. Lower back pain, shoulder impingement..." />
+                            <div className="p-4 bg-red-900/10 border border-red-900/30 rounded-lg">
+                                <p className="text-xs text-red-400 font-bold uppercase mb-2">Commitment Level (1-10)</p>
+                                <input type="range" min="1" max="10" value={intakeData.commitment} onChange={e => updateField('commitment', e.target.value)} className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-red-600" />
+                                <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-bold uppercase">
+                                    <span>Casual</span>
+                                    <span>Elite Focus</span>
+                                </div>
+                            </div>
+                            <div className="flex gap-4 pt-4">
+                                <Button variant="secondary" onClick={prevStep} className="flex-1">Back</Button>
+                                <Button type="submit" className="flex-1" disabled={intakeSubmitting}>
+                                    {intakeSubmitting ? <Spinner /> : 'Submit Application'}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </form>
+              </div>
+            )}
+          </Card>
         </div>
-        <div className="relative z-10">
-          <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight">
-            FORGE YOUR LEGACY
-          </h1>
-          <p className="text-lg md:text-xl text-gray-300 mt-4 max-w-3xl mx-auto">
-            A personal transformation journey to forge the strongest version of yourself.
-          </p>
-          <div className="mt-8">
-            <Button onClick={() => document.getElementById('get-started')?.scrollIntoView({ behavior: 'smooth' })} className="text-lg">Book a Free Consultation</Button>
+      )}
+
+      {showLeadMagnetModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+          <Card className="w-full max-w-md relative bg-[#121214] border-gray-800 shadow-2xl overflow-hidden p-8 text-center">
+            <button onClick={() => setShowLeadMagnetModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white"><i className="fa-solid fa-times text-xl"></i></button>
+            <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl text-white shadow-lg">
+                <i className="fa-solid fa-check"></i>
+            </div>
+            <h3 className="text-2xl font-black text-white mb-4 uppercase italic">Guide Sent!</h3>
+            <p className="text-gray-400">Check your inbox. The "Gut Health Blueprint" is on its way to you.</p>
+            <Button onClick={() => setShowLeadMagnetModal(false)} className="mt-8 w-full">Awesome</Button>
+          </Card>
+        </div>
+      )}
+
+      <div className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-gray-900/95 backdrop-blur-md shadow-lg py-2' : 'bg-transparent py-4'}`}>
+        <nav className="max-w-7xl mx-auto px-4 flex justify-between items-center">
+          <button onClick={handleLogoClick} className="text-2xl font-black text-white tracking-tighter hover:text-red-500 transition-colors uppercase italic cursor-default outline-none bg-transparent border-none">
+            RIPPED<span className="text-red-500">CITY</span>
+          </button>
+          <div className="hidden md:flex items-center space-x-6 font-semibold">
+            {['process', 'story', 'testimonials'].map(id => (
+              <button key={id} onClick={() => {const el = document.getElementById(id); el?.scrollIntoView({behavior: 'smooth'})}} className="text-gray-300 hover:text-white transition uppercase text-sm tracking-wide bg-transparent border-none cursor-pointer">
+                {id.replace('-', ' ')}
+              </button>
+            ))}
+            <Button onClick={() => setShowIntakeModal(true)} variant="primary" className="px-6 py-2 uppercase tracking-wide text-sm font-bold shadow-lg shadow-red-900/20">Apply Now</Button>
+          </div>
+        </nav>
+      </div>
+
+      <header className="relative h-screen flex flex-col items-center justify-center text-center p-4 overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          {siteContent.heroVideo ? (
+            <video autoPlay loop muted playsInline className="w-full h-full object-cover filter brightness-[0.35] contrast-[1.1]" poster={siteContent.heroImage}>
+              <source src={siteContent.heroVideo} type="video/mp4" />
+            </video>
+          ) : (
+            <div className="w-full h-full bg-cover bg-center filter brightness-[0.35]" style={{ backgroundImage: `url('${siteContent.heroImage}')` }}></div>
+          )}
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-black/60 z-0"></div>
+        <div className="relative z-10 animate-fade-in-up max-w-5xl mx-auto mt-16">
+          <div className="inline-block border border-red-500/50 bg-red-900/10 backdrop-blur-sm px-4 py-1 rounded-full mb-6">
+            <p className="text-red-400 font-bold tracking-widest uppercase text-xs md:text-sm"><i className="fa-solid fa-fire mr-2"></i>Elite Spots Available Now</p>
+          </div>
+          <h1 className="text-5xl md:text-8xl font-black text-white tracking-tighter uppercase italic leading-none mb-6 drop-shadow-2xl">FORGE YOUR <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-800">LEGACY</span></h1>
+          <p className="text-lg md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto font-light leading-relaxed">Stop guessing. Start evolving. We provide the elite nutrition, training, and biological analysis you need to reach your peak potential.</p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Button onClick={() => setShowIntakeModal(true)} className="text-lg px-10 py-4 shadow-red-900/50 shadow-xl min-w-[240px] font-bold uppercase tracking-wide transform hover:scale-105 transition-transform">Start Your Transformation</Button>
+            <Button onClick={() => {document.getElementById('process')?.scrollIntoView({behavior:'smooth'})}} variant="secondary" className="text-lg px-10 py-4 bg-transparent border border-white/30 hover:bg-white/10 min-w-[240px]">How It Works</Button>
           </div>
         </div>
       </header>
 
       <main>
-        {/* Services Section */}
-        <section id="services" className="py-20 px-4 bg-gray-900">
-          <div className="max-w-6xl mx-auto text-center">
-            <h2 className="text-4xl font-bold text-white mb-2">What We Offer</h2>
-            <p className="text-gray-400 mb-12">A holistic, personalized approach to guarantee results.</p>
-            <div className="grid md:grid-cols-3 gap-8">
-              <Card><i className="fa-solid fa-utensils text-red-400 text-3xl mb-4"></i><h3 className="text-xl font-semibold mb-2">Custom Nutrition</h3><p className="text-gray-400">Tailored nutrition plans built around your goals, preferences, and unique biometrics.</p></Card>
-              <Card><i className="fa-solid fa-dumbbell text-red-400 text-3xl mb-4"></i><h3 className="text-xl font-semibold mb-2">Personalized Training</h3><p className="text-gray-400">Intelligent, evolving workout programs that fit your lifestyle and available equipment.</p></Card>
-              <Card><i className="fa-solid fa-heart-pulse text-red-400 text-3xl mb-4"></i><h3 className="text-xl font-semibold mb-2">Holistic Health Coaching</h3><p className="text-gray-400">Comprehensive guidance covering supplements, recovery, and lifestyle for total wellness.</p></Card>
+        <section id="process" className="py-24 px-4 bg-gray-900 relative">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter mb-4">The Ripped City <span className="text-red-500">Methodology</span></h2>
+              <p className="text-gray-400 max-w-2xl mx-auto text-lg">We don't do cookie-cutter plans. Our process is designed to adapt to your unique biology and lifestyle.</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-8 relative">
+              <div className="hidden md:block absolute top-12 left-0 w-full h-1 bg-gradient-to-r from-gray-800 via-red-900 to-gray-800 -z-0"></div>
+              {[
+                  { icon: 'fa-clipboard-list', title: '1. Analyze', desc: 'We start with a deep dive. Intake forms, bloodwork analysis, and lifestyle assessment to understand your starting point and metabolic health.'},
+                  { icon: 'fa-dna', title: '2. Blueprint', desc: 'You get a custom roadmap. Precision meal plans, progressive training blocks, and supplement protocols tailored to your specific biology.', highlight: true},
+                  { icon: 'fa-trophy', title: '3. Evolve', desc: 'We execute and adjust. Bi-weekly check-ins, data-driven adjustments, and constant communication ensure you never plateau.'}
+              ].map((step, idx) => (
+                <div key={idx} className="relative z-10 flex flex-col items-center text-center">
+                  <div className={`w-24 h-24 bg-gray-800 border-4 ${step.highlight ? 'border-red-600 shadow-red-900/20' : 'border-gray-700'} rounded-full flex items-center justify-center text-3xl ${step.highlight ? 'text-red-500' : 'text-white'} mb-6 shadow-xl`}>
+                    <i className={`fa-solid ${step.icon}`}></i>
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2 uppercase">{step.title}</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed px-4">{step.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* Transformation Story */}
+        <section id="services" className="py-24 px-4 bg-gray-800 relative border-t border-gray-700">
+          <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+              <div>
+                <h2 className="text-4xl font-bold text-white mb-6 uppercase italic">Elite Coaching.<br/>No Compromises.</h2>
+                <p className="text-gray-400 text-lg mb-8">Most apps give you a PDF and wish you luck. Ripped City is a comprehensive ecosystem designed for one thing: <strong>Results.</strong></p>
+                <div className="space-y-6">
+                  {[
+                      { icon: 'fa-utensils', title: 'Precision Nutrition', desc: 'Macros calculated to the gram. Meal plans that fit your schedule, not generic templates.'},
+                      { icon: 'fa-microscope', title: 'Bloodwork Analysis', desc: 'We look under the hood. Optimize hormones, digestion, and longevity markers.'},
+                      { icon: 'fa-dumbbell', title: 'Periodized Training', desc: 'Phased training blocks (Hypertrophy, Strength, Peaking) to ensure continuous progression.'},
+                      { icon: 'fa-comments', title: '24/7 Access', desc: 'Direct line to your coach. Questions answered, form checks reviewed, adjustments made.'}
+                  ].map((b, i) => (
+                    <div key={i} className="flex gap-4">
+                        <div className="w-12 h-12 bg-red-600/10 rounded-lg flex items-center justify-center flex-shrink-0 text-red-500 text-xl"><i className={`fa-solid ${b.icon}`}></i></div>
+                        <div><h3 className="text-xl font-bold text-white">{b.title}</h3><p className="text-gray-400 text-sm">{b.desc}</p></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <div className="absolute -inset-4 bg-red-600/20 blur-xl rounded-full"></div>
+                <img src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=800&auto=format&fit=crop" alt="Coach" className="relative rounded-2xl shadow-2xl border-2 border-gray-700 w-full transform rotate-2 hover:rotate-0 transition-all duration-500"/>
+              </div>
+          </div>
+        </section>
+
+        <section className="py-20 bg-gradient-to-r from-red-900 to-gray-900 text-white relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+          <div className="max-w-4xl mx-auto px-4 flex flex-col md:flex-row items-center gap-8 relative z-10">
+            <div className="flex-1">
+              <span className="bg-white text-red-900 text-xs font-bold px-2 py-1 rounded mb-2 inline-block uppercase tracking-wider">Not ready to commit yet?</span>
+              <h2 className="text-3xl font-bold mb-4">Get "The Gut Health Blueprint" Free</h2>
+              <p className="text-gray-200 mb-6">Discover the 5 secrets to fixing your digestion, reducing bloat, and absorbing more nutrients from your food.</p>
+            </div>
+            <div className="flex-1 w-full max-w-md">
+              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+                <form className="space-y-4" onSubmit={e => {e.preventDefault(); setShowLeadMagnetModal(true);}}>
+                  <Input placeholder="Enter your email address" type="email" required className="bg-white/80 text-gray-900 placeholder-gray-500"/>
+                  <Button type="submit" className="w-full bg-white text-red-900 hover:bg-gray-100 font-bold border-none"><i className="fa-solid fa-download mr-2"></i> Get The Guide</Button>
+                </form>
+              </Card>
+            </div>
+          </div>
+        </section>
+
         <section id="story" className="py-20 px-4 bg-gray-800">
           <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-10 items-center">
             <div>
-                <h2 className="text-4xl font-bold text-red-400 mb-4">From Rock Bottom to Ripped City</h2>
-                <div className="prose prose-invert max-w-none text-gray-300 max-h-[60vh] overflow-y-auto pr-4">
-                    <h3>A Personal Introduction from the Founder</h3>
-                    <p>When you look at me today—the owner of Ripped City Inc, founder of the <a href="https://www.zeffy.com/en-US/donation-form/e41efe15-414a-4aaa-be55-0376ff88a404" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300">Digesting Life Balance nonprofit</a>, and an aspiring professional bodybuilder—you might assume I've always been passionate about fitness and nutrition...</p>
-                    <p>My journey began at rock bottom. At 338 pounds, I was physically exhausted, emotionally drained, and medically at risk... After losing my mother, I buried my pain in food and work...</p>
-                    <p>I still remember that morning clearly... the results were a wake-up-call I couldn't ignore... That's when I reached out to my friend Mark Alvisi, who became my guide...</p>
-                    <p>...Throughout this journey, I wasn't alone. My training partner, Duveuil Valcena, became...a true mentor...</p>
-                    <p>Over the next year, I lost 97 pounds... This transformation wasn't just physical. With every pound shed, I gained something far more valuable—mental clarity, emotional strength, and a sense of purpose...</p>
-                    <p>Why? Because I discovered something profound: it's better to suffer in the gym than to suffer in the hospital. This realization changed everything for me.</p>
-                    <p>Ripped City Inc was born from this journey... My promise to you is simple: if you bring the determination, this guide will provide the roadmap. No sacrifice, no victory—that's the Ripped City way.</p>
-                    <p>Let's begin this journey together.</p>
-                    <p className="!text-right font-semibold mt-4">Tyrone Hayes<br/>Founder, Ripped City Inc</p>
-                    <div className="flex justify-end space-x-4 mt-2 pr-1">
-                      <a href="https://www.tiktok.com/@tyronedhayes" target="_blank" rel="noopener noreferrer" aria-label="Personal TikTok" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fab fa-tiktok text-xl"></i></a>
-                      <a href="https://www.instagram.com/tbone0189/" target="_blank" rel="noopener noreferrer" aria-label="Personal Instagram" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fab fa-instagram text-xl"></i></a>
-                      <a href="https://x.com/tyroneh1989/" target="_blank" rel="noopener noreferrer" aria-label="Personal X" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fab fa-x-twitter text-xl"></i></a>
-                      <a href="https://www.youtube.com/@tyronehayes5633" target="_blank" rel="noopener noreferrer" aria-label="Personal YouTube" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fab fa-youtube text-xl"></i></a>
-                      <a href="https://www.snapchat.com/@tyroneee89" target="_blank" rel="noopener noreferrer" aria-label="Personal Snapchat" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fab fa-snapchat text-xl"></i></a>
-                    </div>
-                </div>
+              <h2 className="text-4xl font-bold text-red-400 mb-4">From Rock Bottom to Ripped City</h2>
+              <div className="prose prose-invert max-w-none text-gray-300 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar">
+                <p>When you look at me today—owner of Ripped City Inc, aspiring professional bodybuilder—you might assume I've always been fit.</p>
+                <p>My journey began at 338 pounds. I was exhausted, emotionally drained, and medically at risk. Over the next year, I lost 97 pounds and gained mental clarity and purpose.</p>
+                <p className="font-bold text-white italic">"It's better to suffer in the gym than to suffer in the hospital."</p>
+                <p>My promise to you is simple: if you bring the determination, I will provide the roadmap.</p>
+              </div>
             </div>
             <div className="flex gap-4">
-                <img src="https://images.unsplash.com/photo-1579047062954-26965a3d0628?q=80&w=800&auto=format&fit=crop" alt="Before" className="rounded-lg w-1/2 object-cover shadow-lg transform -rotate-3 hover:rotate-0 transition-transform"/>
-                <img src="https://images.unsplash.com/photo-1549476464-373921717545?q=80&w=800&auto=format&fit=crop" alt="After" className="rounded-lg w-1/2 object-cover shadow-lg transform rotate-3 hover:rotate-0 transition-transform"/>
+              <img src={siteContent.transformationBefore} className="rounded-lg w-1/2 object-cover shadow-lg transform -rotate-3 border-4 border-gray-700"/>
+              <img src={siteContent.transformationAfter} className="rounded-lg w-1/2 object-cover shadow-lg transform rotate-3 border-4 border-red-600"/>
             </div>
           </div>
         </section>
-        
-        {/* Support Our Mission Section */}
-        <section id="mission" className="py-20 px-4 bg-gray-900">
-            <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-                <div className="text-center md:text-left">
-                    <i className="fa-solid fa-hand-holding-heart text-5xl text-red-500 mb-4"></i>
-                    <h2 className="text-4xl font-bold text-white mb-4">Support Our Mission</h2>
-                    <h3 className="text-2xl font-semibold text-red-400 mb-4">Digesting Life Balance</h3>
-                    <p className="text-gray-300 mb-8">
-                        Our nonprofit is dedicated to improving community health by providing resources for digestive wellness and helping people take control of their health. Your contribution helps us fight chronic illness and promote a healthier future for everyone.
-                    </p>
-                    <Button onClick={() => window.open('https://www.zeffy.com/en-US/donation-form/e41efe15-414a-4aaa-be55-0376ff88a404', '_blank')}>
-                        Donate Now
-                        <i className="fa-solid fa-arrow-up-right-from-square ml-2"></i>
-                    </Button>
-                </div>
-                <Card className="bg-gray-800/80">
-                    <h3 className="text-xl font-bold text-white mb-4 text-center">How Your Donation Helps</h3>
-                    <p className="text-sm text-center text-gray-400 mb-6">Your tax-deductible contribution directly funds our community outreach and wellness programs.</p>
-                    <ul className="space-y-4">
-                        <li className="flex items-center p-3 bg-gray-700/50 rounded-lg">
-                            <i className="fa-solid fa-circle-dollar-to-slot text-red-400 text-2xl mr-4 w-8 text-center"></i>
-                            <div>
-                                <h4 className="font-semibold text-white">One-Time Donations</h4>
-                                <p className="text-gray-400 text-sm">Provide immediate support for our current initiatives.</p>
-                            </div>
-                        </li>
-                        <li className="flex items-center p-3 bg-gray-700/50 rounded-lg">
-                            <i className="fa-solid fa-calendar-check text-red-400 text-2xl mr-4 w-8 text-center"></i>
-                            <div>
-                                <h4 className="font-semibold text-white">Monthly Giving</h4>
-                                <p className="text-gray-400 text-sm">Offer sustained support for our long-term health programs.</p>
-                            </div>
-                        </li>
-                        <li className="flex items-center p-3 bg-gray-700/50 rounded-lg">
-                            <i className="fa-solid fa-handshake-angle text-red-400 text-2xl mr-4 w-8 text-center"></i>
-                            <div>
-                                <h4 className="font-semibold text-white">Sponsor Programs</h4>
-                                <p className="text-gray-400 text-sm">Make a larger impact by sponsoring a wellness workshop.</p>
-                            </div>
-                        </li>
-                    </ul>
+
+        <section id="testimonials" className="py-20 px-4 bg-gray-900">
+          <div className="max-w-6xl mx-auto text-center">
+            <h2 className="text-4xl font-bold text-white mb-12 uppercase italic tracking-tighter">Elite Transformations</h2>
+            <div className="grid md:grid-cols-3 gap-8">
+              {mockTestimonials.map((t, i) => (
+                <Card key={i} className="text-left border-gray-800 bg-gray-800/50">
+                  <div className="flex items-center mb-4">
+                    <img src={t.imageUrl} className="w-16 h-16 rounded-full object-cover mr-4 ring-2 ring-red-500" />
+                    <div><h4 className="font-bold text-lg text-white">{t.name}</h4><p className="text-sm text-red-400">Client</p></div>
+                  </div>
+                  <p className="text-gray-300 italic">"{t.quote}"</p>
                 </Card>
+              ))}
             </div>
+          </div>
         </section>
 
-        {/* Testimonials Section */}
-        <section id="testimonials" className="py-20 px-4 bg-gray-800">
-            <div className="max-w-6xl mx-auto text-center">
-                 <h2 className="text-4xl font-bold text-white mb-12">What Our Clients Say</h2>
-                 <div className="grid md:grid-cols-3 gap-8">
-                    {mockTestimonials.map((testimonial, index) => (
-                        <Card key={index} className="text-left">
-                            <div className="flex items-center mb-4">
-                                <img src={testimonial.imageUrl} alt={testimonial.name} className="w-16 h-16 rounded-full object-cover mr-4" />
-                                <div>
-                                    <h4 className="font-bold text-lg text-white">{testimonial.name}</h4>
-                                    <p className="text-sm text-red-400">Verified Client</p>
-                                </div>
-                            </div>
-                            <p className="text-gray-300 italic">"{testimonial.quote}"</p>
-                        </Card>
-                    ))}
-                 </div>
-            </div>
-        </section>
-
-        {/* Get Started Section */}
-        <section id="get-started" className="py-20 px-4 bg-gray-900">
-             <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-10 items-start">
-                <div className="flex flex-col items-center text-center md:items-start md:text-left h-full">
-                    <h2 className="text-3xl font-bold text-white mb-6">Start Your Transformation Today</h2>
-                    <p className="text-gray-400 mb-6">Ready to take the first step? Onboarding is a personalized, one-on-one process. Book a free, no-obligation consultation to discuss your goals and see if we're the right fit.</p>
-                    <Button onClick={handleBookConsultation} className="mt-auto">Book Your Free Consultation</Button>
+        <section id="login" className="py-24 px-4 bg-gradient-to-b from-gray-800 to-black">
+          <div className="max-w-md mx-auto">
+            <Card className="bg-gray-900 border-gray-700 shadow-2xl">
+              <h2 className="text-2xl font-black text-center text-white mb-6 uppercase italic">Client Login</h2>
+              <form onSubmit={handleLogin} className="space-y-6">
+                <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Password</label>
+                    <div className="relative">
+                        <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-4 py-2 pr-10 focus:ring-2 focus:ring-red-500 outline-none" required />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"><i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i></button>
+                    </div>
                 </div>
-                <div id="login">
-                    <Card className="bg-gray-800/60">
-                         {isDemoMode ? (
-                          <>
-                            <h2 className="text-3xl font-bold text-center text-white mb-2">Demo Mode</h2>
-                             <p className="text-center text-gray-400 mb-6">The app is running with mock data. <br/> Explore as a coach or a client.</p>
-                            <div className="space-y-4">
-                                <Button onClick={() => onDemoLogin('coach')} className="w-full">
-                                    <i className="fa-solid fa-user-shield mr-2"></i> Enter as Coach
-                                </Button>
-                                {mockClients.filter(c => c.status !== 'prospect').map(client => (
-                                     <Button key={client.id} onClick={() => onDemoLogin('client', client.email)} className="w-full" variant="secondary">
-                                        <i className="fa-solid fa-user mr-2"></i> Enter as {client.name}
-                                    </Button>
-                                ))}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <h2 className="text-3xl font-bold text-center text-white mb-6">Portal Access</h2>
-                            <form onSubmit={handleLogin} className="space-y-6">
-                                <Input 
-                                    id="email" 
-                                    label="Email"
-                                    type="email"
-                                    value={email} 
-                                    onChange={(e) => setEmail(e.target.value)} 
-                                    placeholder="user@example.com"
-                                    required 
-                                />
-                                <Input id="password" label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                                <Button type="submit" className="w-full" disabled={isLoading}>
-                                    {isLoading ? <Spinner /> : <><i className="fa-solid fa-right-to-bracket mr-2"></i>Login</>}
-                                </Button>
-                            </form>
-                            {error && <p className="text-red-400 text-sm text-center mt-4">{error}</p>}
-
-                            <div className="relative flex py-5 items-center">
-                                <div className="flex-grow border-t border-gray-700"></div>
-                                <span className="flex-shrink mx-4 text-gray-400 text-xs uppercase">Or continue with</span>
-                                <div className="flex-grow border-t border-gray-700"></div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <Button variant="secondary" onClick={() => handleSocialLogin('google')} disabled={isLoading}>
-                                    <i className="fab fa-google mr-2"></i> Google
-                                </Button>
-                                <Button variant="secondary" onClick={() => handleSocialLogin('apple')} disabled={isLoading}>
-                                    <i className="fab fa-apple mr-2"></i> Apple
-                                </Button>
-                                <Button variant="secondary" onClick={() => handleSocialLogin('azure')} disabled={isLoading}>
-                                    <i className="fab fa-microsoft mr-2"></i> Microsoft
-                                </Button>
-                                <Button variant="secondary" onClick={() => handleSocialLogin('facebook')} disabled={isLoading}>
-                                    <i className="fab fa-facebook mr-2"></i> Facebook
-                                </Button>
-                            </div>
-                          </>
-                        )}
-                    </Card>
-                </div>
-             </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>{isLoading ? <Spinner /> : 'Access Portal'}</Button>
+              </form>
+              {error && <p className="text-red-400 text-sm text-center mt-4 font-bold">{error}</p>}
+            </Card>
+          </div>
         </section>
       </main>
 
-       <footer className="bg-gray-900 py-8 text-center border-t border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-8 text-left md:text-center">
-            <div>
-                <h4 className="font-semibold text-white mb-3 uppercase tracking-wider">Ripped City Inc.</h4>
-                <div className="flex justify-start md:justify-center space-x-6">
-                    <a href="https://www.tiktok.com/@rippedcityinc" target="_blank" rel="noopener noreferrer" aria-label="Ripped City Inc TikTok" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fab fa-tiktok text-2xl"></i></a>
-                    <a href="https://www.instagram.com/rippedcityinc/?hl=en" target="_blank" rel="noopener noreferrer" aria-label="Ripped City Inc Instagram" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fab fa-instagram text-2xl"></i></a>
-                </div>
+      <footer className="bg-gray-900 py-12 border-t border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+            <h1 className="text-3xl font-black text-white italic tracking-tighter mb-8">RIPPED<span className="text-red-600">CITY</span></h1>
+            <div className="flex justify-center space-x-6 mb-8">
+                <a href="https://www.tiktok.com/@tyronedhayes" className="text-gray-400 hover:text-white text-xl"><i className="fab fa-tiktok"></i></a>
+                <a href="https://www.instagram.com/tbone0189/" className="text-gray-400 hover:text-white text-xl"><i className="fab fa-instagram"></i></a>
             </div>
-            <div>
-                <h4 className="font-semibold text-white mb-3 uppercase tracking-wider">Digesting Life Balance</h4>
-                <div className="flex justify-start md:justify-center space-x-6">
-                    <a href="https://www.instagram.com/digestinglifebalance/?hl=en" target="_blank" rel="noopener noreferrer" aria-label="Digesting Life Balance Instagram" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fab fa-instagram text-2xl"></i></a>
-                    <a href="https://www.facebook.com/profile.php?id=100029187646814" target="_blank" rel="noopener noreferrer" aria-label="Digesting Life Balance Facebook" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fab fa-facebook text-2xl"></i></a>
-                    <a href="https://www.zeffy.com/en-US/donation-form/e41efe15-414a-4aaa-be55-0376ff88a404" target="_blank" rel="noopener noreferrer" aria-label="Donate to Digesting Life Balance" className="text-gray-400 hover:text-red-500 transition-colors"><i className="fa-solid fa-hand-holding-dollar text-2xl"></i></a>
-                </div>
-            </div>
+            <p className="text-gray-600 text-sm">&copy; {new Date().getFullYear()} Ripped City Inc. All Rights Reserved.</p>
         </div>
-        <p className="text-gray-500 mt-8">&copy; {new Date().getFullYear()} Ripped City Coaching. All Rights Reserved.</p>
       </footer>
     </div>
   );
 };
 
 export default LandingPage;
+
