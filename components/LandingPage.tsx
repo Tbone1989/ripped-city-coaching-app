@@ -74,7 +74,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ isDemoMode = false, onDemoLog
         </div>
         <div className="relative z-10">
           <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight">
-            
+            FORGE YOUR LEGACY
           </h1>
           <p className="text-lg md:text-xl text-gray-300 mt-4 max-w-3xl mx-auto">
             A personal transformation journey to forge the strongest version of yourself.
