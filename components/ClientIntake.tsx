@@ -11,6 +11,8 @@ const mockSubmissionsData = [
     goal: 'Lose 20 pounds for my wedding',
     experience: 'beginner' as const,
     phone: '555-0101',
+    currentSupplements: 'Multivitamin, Collagen',
+    currentPharma: 'None'
   },
   {
     name: 'Carlos Santos',
@@ -18,6 +20,8 @@ const mockSubmissionsData = [
     goal: 'Gain 10 pounds of muscle',
     experience: 'intermediate' as const,
     phone: '555-0102',
+    currentSupplements: 'Creatine, Whey Protein, Pre-workout',
+    currentPharma: 'TRT (Test C 150mg/wk)'
   },
   {
     name: 'Jessica Chen',
@@ -25,6 +29,8 @@ const mockSubmissionsData = [
     goal: 'Run a half-marathon',
     experience: 'intermediate' as const,
     phone: '555-0103',
+    currentSupplements: 'Electrolytes, BCAA',
+    currentPharma: 'None'
   },
 ];
 
