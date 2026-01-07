@@ -55,8 +55,7 @@ function App() {
       if (error) {
           console.error("Error fetching clients:", error);
       } else {
-          setClients(data as unknown as Client[]);
-      }
+          setClients((data || []) as Client[]);      }
   }, []);
 
   useEffect(() => {
