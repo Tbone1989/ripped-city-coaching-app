@@ -103,8 +103,7 @@ const ClientList: React.FC<ClientListProps> = ({ clients, onSelectClient, onAddC
                     <div className="flex justify-between items-center">
                         <p className="text-sm text-gray-300"><strong>Goal:</strong> <span className="font-semibold text-red-400">{client.goal}</span></p>
                         <span className={`text-xs font-bold py-1 px-2 rounded-full ${client.profile.status === 'enhanced' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'}`}>
-                            {client.profile.status.charAt(0).toUpperCase() + client.profile.status.slice(1)}
-                        </span>
+                          {(client.profile?.status?.charAt(0).toUpperCase() + client.profile?.status?.slice(1)) || 'N/A'}                        </span>
                     </div>
                 </div>
                  <Button variant="secondary" className="w-full mt-6" onClick={(e) => { e.stopPropagation(); onSelectClient(client.id); }}>
