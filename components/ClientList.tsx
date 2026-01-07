@@ -96,7 +96,7 @@ const ClientList: React.FC<ClientListProps> = ({ clients, onSelectClient, onAddC
                     <div className="flex justify-between items-start">
                         <h4 className="text-xl font-bold text-white">{client.name}</h4>
                         <span className={`text-xs font-bold py-1 px-2 rounded-full ${getClientStatusColor(client.status)}`}>
-                            {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
+                            {(client.status?.charAt(0).toUpperCase() + client.status?.slice(1)) || 'N/A'}
                         </span>
                     </div>
                     <p className="text-sm text-gray-400 mb-4">{client.email}</p>
