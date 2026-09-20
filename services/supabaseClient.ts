@@ -34,6 +34,13 @@ export type ClientInsert = Omit<ClientRow, 'id' | 'created_at'>;
 export type ClientUpdate = Partial<Omit<ClientRow, 'id' | 'created_at'>>;
 
 
+export type LeadRow = {
+  id: string;
+  created_at: string;
+  email: string;
+  source: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -41,6 +48,11 @@ export type Database = {
         Row: ClientRow;
         Insert: ClientInsert;
         Update: ClientUpdate;
+      };
+      leads: {
+        Row: LeadRow;
+        Insert: { email: string; source?: string | null };
+        Update: Partial<{ email: string; source?: string | null }>;
       };
     };
     Views: {
