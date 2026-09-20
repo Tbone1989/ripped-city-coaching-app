@@ -46,3 +46,13 @@ CREATE POLICY "Public can join lead magnet"
   FOR INSERT
   TO anon
   WITH CHECK (true);
+
+-- 4) Let the signed-in coach read captured leads (the app only inserts
+--    leads from the landing page; without this the coach dashboard and
+--    any authenticated query would see zero rows).
+DROP POLICY IF EXISTS "Allow authenticated read on leads" ON public.leads;
+CREATE POLICY "Allow authenticated read on leads"
+  ON public.leads
+  FOR SELECT
+  TO authenticated
+  USING (true);
