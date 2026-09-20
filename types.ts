@@ -1,4 +1,5 @@
 export enum Tool {
+  DailyBriefing = 'Daily Briefing',
   MealPlan = 'Meal Plan Generator',
   Workout = 'Workout Generator',
   Supplements = 'Supplement Stack Generator',
@@ -6,6 +7,7 @@ export enum Tool {
   Intake = 'Client Intake',
   Protocols = 'Wellness Protocols',
   Clients = 'Clients',
+  Leads = 'Leads',
   Financials = 'Financials',
   Settings = 'Settings',
 }
