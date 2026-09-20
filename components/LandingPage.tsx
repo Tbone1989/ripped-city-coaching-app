@@ -36,6 +36,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [leadError, setLeadError] = useState('');
 
+  // --- Spam-guard state (honeypot + form timing for the API endpoints) ---
+  const [honeypot, setHoneypot] = useState('');
+  const [intakeLoadedAt, setIntakeLoadedAt] = useState(0);
+  const [leadLoadedAt, setLeadLoadedAt] = useState(0);
+
+  const openIntakeModal = () => {
+    setIntakeLoadedAt(Date.now());
+    setHoneypot('');
+    setIntakeStep(1);
+    setIntakeError('');
+    setShowIntakeModal(true);
+  };
+
   const COACH_EMAIL = 'rippedcityinc@mail.com';
   const GUT_HEALTH_PDF_URL = '/gut-health-blueprint.pdf';
 
@@ -61,6 +74,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
+    setLeadLoadedAt(Date.now());
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -95,6 +109,25 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
       if (authError) setError(authError.message);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setError('');
+    const resetEmail = email.trim();
+    if (!resetEmail) { setError('Enter your email above first.'); return; }
+    if (!isSupabaseConfigured || !supabase) { setError('Backend services not configured.'); return; }
+    setIsLoading(true);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: 'https://ripped-city-coaching-app.vercel.app/'
+      });
+      if (resetError) throw resetError;
+      setResetEmailSent(true);
+    } catch (err: any) {
+      setError(err.message || 'Could not send reset email.');
     } finally {
       setIsLoading(false);
     }
@@ -147,8 +180,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
 
     try {
       if (isSupabaseConfigured) {
-          const { error: insError } = await (supabase.from('clients') as any).insert([newClient]);
-          if (insError) throw insError;
+          // Route through the spam-guarded API (honeypot + fill-time + rate limit)
+          // instead of inserting into Supabase directly.
+          const res = await fetch('/api/submit-application', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client: newClient, website: honeypot, loadedAt: intakeLoadedAt }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Submission failed. Please try again or email us directly.');
       }
       setIntakeSuccess(true);
       setTimeout(() => {
@@ -172,10 +212,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
     setLeadError('');
     try {
       if (isSupabaseConfigured && supabase) {
-        const { error: leadErr } = await (supabase.from('leads') as any).insert([
-          { email: cleanEmail, source: 'gut-health-blueprint' }
-        ]);
-        if (leadErr) throw leadErr;
+        // Spam-guarded API route; the guide downloads even if capture fails.
+        const res = await fetch('/api/submit-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, source: 'gut-health-blueprint', website: honeypot, loadedAt: leadLoadedAt }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Could not save email.');
+        }
       }
       setShowLeadMagnetModal(true);
       setLeadEmail('');
@@ -232,6 +278,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
                 </div>
 
                 <form onSubmit={handleIntakeSubmit} className="space-y-6">
+                {/* Honeypot: hidden from humans, catches bots */}
+                <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
+                  <input type="text" name="website" autoComplete="off" tabIndex={-1} value={honeypot} onChange={e => setHoneypot(e.target.value)} />
+                </div>
                     {intakeStep === 1 && (
                         <div className="space-y-4 animate-fade-in-up">
                             <Input label="Full Name" value={intakeData.name} onChange={e => updateField('name', e.target.value)} required placeholder="John Doe" />
@@ -361,7 +411,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
                 {id.replace('-', ' ')}
               </button>
             ))}
-            <Button onClick={() => setShowIntakeModal(true)} variant="primary" className="px-6 py-2 uppercase tracking-wide text-sm font-bold shadow-lg shadow-red-900/20">Apply Now</Button>
+            <Button onClick={openIntakeModal} variant="primary" className="px-6 py-2 uppercase tracking-wide text-sm font-bold shadow-lg shadow-red-900/20">Apply Now</Button>
           </div>
         </nav>
       </div>
@@ -384,7 +434,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
           <h1 className="text-5xl md:text-8xl font-black text-white tracking-tighter uppercase italic leading-none mb-6 drop-shadow-2xl">FORGE YOUR <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-800">LEGACY</span></h1>
           <p className="text-lg md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto font-light leading-relaxed">Stop guessing. Start evolving. We provide the elite nutrition, training, and biological analysis you need to reach your peak potential.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button onClick={() => setShowIntakeModal(true)} className="text-lg px-10 py-4 shadow-red-900/50 shadow-xl min-w-[240px] font-bold uppercase tracking-wide transform hover:scale-105 transition-transform">Start Your Transformation</Button>
+            <Button onClick={openIntakeModal} className="text-lg px-10 py-4 shadow-red-900/50 shadow-xl min-w-[240px] font-bold uppercase tracking-wide transform hover:scale-105 transition-transform">Start Your Transformation</Button>
             <Button onClick={() => {document.getElementById('process')?.scrollIntoView({behavior:'smooth'})}} variant="secondary" className="text-lg px-10 py-4 bg-transparent border border-white/30 hover:bg-white/10 min-w-[240px]">How It Works</Button>
           </div>
         </div>
@@ -453,6 +503,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
             <div className="flex-1 w-full max-w-md">
               <Card className="bg-white/10 backdrop-blur-md border-white/20">
                 <form className="space-y-4" onSubmit={handleLeadMagnetSubmit}>
+                  {/* Honeypot: hidden from humans, catches bots */}
+                  <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
+                    <input type="text" name="website" autoComplete="off" tabIndex={-1} value={honeypot} onChange={e => setHoneypot(e.target.value)} />
+                  </div>
                   <Input placeholder="Enter your email address" type="email" required value={leadEmail} onChange={e => setLeadEmail(e.target.value)} className="bg-white/80 text-gray-900 placeholder-gray-500"/>
                   <Button type="submit" disabled={leadSubmitting} className="w-full bg-white text-red-900 hover:bg-gray-100 font-bold border-none">
                     {leadSubmitting ? <Spinner /> : <><i className="fa-solid fa-download mr-2"></i> Get The Guide</>}
@@ -491,7 +545,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
               </div>
               <p className="text-gray-300 text-lg mb-2 font-semibold">Client transformations are being documented now.</p>
               <p className="text-gray-500 mb-8">Real results from real clients will be featured here as they come in.</p>
-              <Button onClick={() => setShowIntakeModal(true)} className="uppercase tracking-wide font-bold">Be The First Story</Button>
+              <Button onClick={openIntakeModal} className="uppercase tracking-wide font-bold">Be The First Story</Button>
             </Card>
           </div>
         </section>
@@ -511,6 +565,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>{isLoading ? <Spinner /> : 'Access Portal'}</Button>
               </form>
+              <div className="text-center mt-4">
+                {!showForgotPassword ? (
+                  <button type="button" onClick={() => { setShowForgotPassword(true); setResetEmailSent(false); setError(''); }} className="text-sm text-gray-400 hover:text-white underline">Forgot password?</button>
+                ) : resetEmailSent ? (
+                  <div>
+                    <p className="text-green-400 text-sm font-bold">Reset link sent! Check your inbox.</p>
+                    <button type="button" onClick={() => setShowForgotPassword(false)} className="text-sm text-gray-400 hover:text-white underline mt-2">Back to login</button>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-gray-400 text-sm mb-3">Enter your email above, then tap below and check your inbox.</p>
+                    <Button type="button" onClick={handlePasswordReset} disabled={isLoading} className="w-full" variant="secondary">{isLoading ? <Spinner /> : 'Send reset link'}</Button>
+                    <button type="button" onClick={() => setShowForgotPassword(false)} className="text-sm text-gray-400 hover:text-white underline mt-3">Back to login</button>
+                  </div>
+                )}
+              </div>
               {error && <p className="text-red-400 text-sm text-center mt-4 font-bold">{error}</p>}
             </Card>
           </div>
