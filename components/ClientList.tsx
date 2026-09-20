@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Client } from '../types.ts';
 import { Button, Card, Input, Select } from './ui/common.tsx';
 import { type ClientInsert } from '../services/supabaseClient.ts';
+import { downloadCsv } from '../services/csvExport.ts';
 
 interface ClientListProps {
   clients: Client[];
@@ -53,6 +54,20 @@ const ClientList: React.FC<ClientListProps> = ({ clients, onSelectClient, onAddC
     setShowAddForm(false);
   };
 
+  const exportCsv = () => {
+    downloadCsv(
+      `ripped-city-clients-${new Date().toISOString().slice(0, 10)}.csv`,
+      clients.map(c => ({
+        name: c.name,
+        email: c.email,
+        status: c.status,
+        payment_status: (c as any).paymentStatus || '',
+        goal: c.goal || '',
+        created_at: (c as any).created_at ? new Date((c as any).created_at).toLocaleString() : '',
+      }))
+    );
+  };
+
     const getClientStatusColor = (status: Client['status']) => {
         switch (status) {
             case 'active': return 'bg-blue-500/20 text-blue-300';
@@ -66,10 +81,16 @@ const ClientList: React.FC<ClientListProps> = ({ clients, onSelectClient, onAddC
     <div>
         <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-semibold text-white">All Clients ({clients.length})</h3>
-            <Button onClick={() => setShowAddForm(s => !s)}>
-                 <i className={`fa-solid ${showAddForm ? 'fa-times' : 'fa-plus'} mr-2`}></i>
-                {showAddForm ? 'Cancel' : 'Add New Prospect'}
-            </Button>
+            <div className="flex gap-3">
+                <Button variant="secondary" onClick={exportCsv} disabled={!clients.length}>
+                    <i className="fa-solid fa-download mr-2"></i>
+                    Export CSV
+                </Button>
+                <Button onClick={() => setShowAddForm(s => !s)}>
+                     <i className={`fa-solid ${showAddForm ? 'fa-times' : 'fa-plus'} mr-2`}></i>
+                    {showAddForm ? 'Cancel' : 'Add New Prospect'}
+                </Button>
+            </div>
         </div>
 
         {showAddForm && (
