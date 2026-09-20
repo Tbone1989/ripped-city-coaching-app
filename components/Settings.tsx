@@ -87,7 +87,7 @@ const Settings: React.FC = () => {
         <h3 className="text-xl font-semibold text-white mb-2">
           <i className="fa-brands fa-stripe mr-2 text-purple-400"></i>Stripe Integration
         </h3>
-        <p className="text-gray-400 mb-4">Save your Stripe publishable key to enable payment tracking in the Financials tab.</p>
+        <p className="text-gray-400 mb-4">Real Stripe checkout is built in. Add your secret key in Vercel (see STRIPE_SETUP.md), then generate live payment links from any client's onboarding checklist — paid clients are marked Paid automatically.</p>
         <div className="p-3 mb-4 bg-yellow-900/30 border border-yellow-700 rounded-lg text-yellow-300 text-xs">
           <i className="fa-solid fa-shield-halved mr-2"></i>
           <strong>Security:</strong> Only store your publishable key (pk_live_...) here. Your secret key must be added to Vercel environment variables only.

@@ -1,7 +1,6 @@
 
 import React, { useState, FormEvent, useEffect } from 'react';
 import { Button, Input, Card, Spinner, TextArea, Select } from './ui/common.tsx';
-import { mockTestimonials } from '../data/mockData.ts';
 import { protocols } from '../data/protocolsData.ts';
 import { supabase, isSupabaseConfigured, type ClientInsert } from '../services/supabaseClient.ts';
 import type { Provider } from '@supabase/supabase-js';
@@ -29,9 +28,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
   const [intakeStep, setIntakeStep] = useState(1);
   const [intakeSuccess, setIntakeSuccess] = useState(false);
   const [intakeSubmitting, setIntakeSubmitting] = useState(false);
+  const [intakeError, setIntakeError] = useState('');
 
   // --- Lead Magnet State ---
   const [showLeadMagnetModal, setShowLeadMagnetModal] = useState(false);
+  const [leadEmail, setLeadEmail] = useState('');
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+  const [leadError, setLeadError] = useState('');
+
+  const COACH_EMAIL = 'rippedcityinc@mail.com';
+  const GUT_HEALTH_PDF_URL = '/gut-health-blueprint.pdf';
 
   const [intakeData, setIntakeData] = useState({
     name: '',
@@ -97,7 +103,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
   const handleIntakeSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIntakeSubmitting(true);
-    setError('');
+    setIntakeError('');
 
     const newClient: ClientInsert = {
       name: intakeData.name,
@@ -151,9 +157,35 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
         setIntakeStep(1);
       }, 3000);
     } catch (err: any) {
-      setError('Submission failed. Please email us directly.');
+      console.error('Application submission failed:', err);
+      setIntakeError(err?.message || 'Submission failed. Please try again or email us directly.');
     } finally {
       setIntakeSubmitting(false);
+    }
+  };
+
+  const handleLeadMagnetSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = leadEmail.trim();
+    if (!cleanEmail) return;
+    setLeadSubmitting(true);
+    setLeadError('');
+    try {
+      if (isSupabaseConfigured && supabase) {
+        const { error: leadErr } = await (supabase.from('leads') as any).insert([
+          { email: cleanEmail, source: 'gut-health-blueprint' }
+        ]);
+        if (leadErr) throw leadErr;
+      }
+      setShowLeadMagnetModal(true);
+      setLeadEmail('');
+    } catch (err: any) {
+      console.error('Lead capture failed:', err);
+      // Still deliver the guide even if capture fails — never block the freebie.
+      setShowLeadMagnetModal(true);
+      setLeadEmail('');
+    } finally {
+      setLeadSubmitting(false);
     }
   };
 
@@ -285,6 +317,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
                                     {intakeSubmitting ? <Spinner /> : 'Submit Application'}
                                 </Button>
                             </div>
+                            {intakeError && (
+                                <div className="p-4 bg-red-900/20 border border-red-800 rounded-lg text-sm">
+                                    <p className="text-red-300 font-bold mb-1"><i className="fa-solid fa-triangle-exclamation mr-2"></i>Couldn't send your application</p>
+                                    <p className="text-gray-400">{intakeError}</p>
+                                    <p className="text-gray-400 mt-2">Please try again, or email us directly at <a href={`mailto:${COACH_EMAIL}`} className="text-red-400 underline font-semibold">{COACH_EMAIL}</a>.</p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </form>
@@ -301,9 +340,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
             <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl text-white shadow-lg">
                 <i className="fa-solid fa-check"></i>
             </div>
-            <h3 className="text-2xl font-black text-white mb-4 uppercase italic">Guide Sent!</h3>
-            <p className="text-gray-400">Check your inbox. The "Gut Health Blueprint" is on its way to you.</p>
-            <Button onClick={() => setShowLeadMagnetModal(false)} className="mt-8 w-full">Awesome</Button>
+            <h3 className="text-2xl font-black text-white mb-4 uppercase italic">Guide Ready!</h3>
+            <p className="text-gray-400 mb-6">Your free "Gut Health Blueprint" is ready to download.</p>
+            <a href={GUT_HEALTH_PDF_URL} download className="inline-block mt-2 px-8 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg uppercase tracking-wide transition-colors">
+              <i className="fa-solid fa-download mr-2"></i>Download The Guide
+            </a>
+            <div><Button onClick={() => setShowLeadMagnetModal(false)} variant="secondary" className="mt-4">Close</Button></div>
           </Card>
         </div>
       )}
@@ -410,9 +452,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
             </div>
             <div className="flex-1 w-full max-w-md">
               <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                <form className="space-y-4" onSubmit={e => {e.preventDefault(); setShowLeadMagnetModal(true);}}>
-                  <Input placeholder="Enter your email address" type="email" required className="bg-white/80 text-gray-900 placeholder-gray-500"/>
-                  <Button type="submit" className="w-full bg-white text-red-900 hover:bg-gray-100 font-bold border-none"><i className="fa-solid fa-download mr-2"></i> Get The Guide</Button>
+                <form className="space-y-4" onSubmit={handleLeadMagnetSubmit}>
+                  <Input placeholder="Enter your email address" type="email" required value={leadEmail} onChange={e => setLeadEmail(e.target.value)} className="bg-white/80 text-gray-900 placeholder-gray-500"/>
+                  <Button type="submit" disabled={leadSubmitting} className="w-full bg-white text-red-900 hover:bg-gray-100 font-bold border-none">
+                    {leadSubmitting ? <Spinner /> : <><i className="fa-solid fa-download mr-2"></i> Get The Guide</>}
+                  </Button>
+                  {leadError && <p className="text-yellow-200 text-xs">{leadError}</p>}
                 </form>
               </Card>
             </div>
@@ -438,19 +483,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
         </section>
 
         <section id="testimonials" className="py-20 px-4 bg-gray-900">
-          <div className="max-w-6xl mx-auto text-center">
-            <h2 className="text-4xl font-bold text-white mb-12 uppercase italic tracking-tighter">Elite Transformations</h2>
-            <div className="grid md:grid-cols-3 gap-8">
-              {mockTestimonials.map((t, i) => (
-                <Card key={i} className="text-left border-gray-800 bg-gray-800/50">
-                  <div className="flex items-center mb-4">
-                    <img src={t.imageUrl} className="w-16 h-16 rounded-full object-cover mr-4 ring-2 ring-red-500" />
-                    <div><h4 className="font-bold text-lg text-white">{t.name}</h4><p className="text-sm text-red-400">Client</p></div>
-                  </div>
-                  <p className="text-gray-300 italic">"{t.quote}"</p>
-                </Card>
-              ))}
-            </div>
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-4xl font-bold text-white mb-8 uppercase italic tracking-tighter">Elite Transformations</h2>
+            <Card className="border-gray-800 bg-gray-800/50 py-12 px-8">
+              <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl text-red-500">
+                <i className="fa-solid fa-hourglass-half"></i>
+              </div>
+              <p className="text-gray-300 text-lg mb-2 font-semibold">Client transformations are being documented now.</p>
+              <p className="text-gray-500 mb-8">Real results from real clients will be featured here as they come in.</p>
+              <Button onClick={() => setShowIntakeModal(true)} className="uppercase tracking-wide font-bold">Be The First Story</Button>
+            </Card>
           </div>
         </section>
 
@@ -481,7 +523,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
             <div className="flex justify-center space-x-6 mb-8">
                 <a href="https://www.tiktok.com/@tyronedhayes" className="text-gray-400 hover:text-white text-xl"><i className="fab fa-tiktok"></i></a>
                 <a href="https://www.instagram.com/tbone0189/" className="text-gray-400 hover:text-white text-xl"><i className="fab fa-instagram"></i></a>
+                <a href="mailto:rippedcityinc@mail.com" className="text-gray-400 hover:text-white text-xl"><i className="fa-solid fa-envelope"></i></a>
             </div>
+            <p className="text-gray-500 text-sm mb-2"><a href="mailto:rippedcityinc@mail.com" className="hover:text-gray-300 underline">rippedcityinc@mail.com</a></p>
             <p className="text-gray-600 text-sm">&copy; {new Date().getFullYear()} Ripped City Inc. All Rights Reserved.</p>
         </div>
       </footer>
