@@ -1,19 +1,26 @@
 -- Ripped City Coaching — application + lead-capture repair
 -- Run once in the Supabase SQL editor (project neyopskwxstqpoogqumy).
--- Date: 2026-09-19
+-- Date: 2026-09-20 (corrected: quoted camelCase columns, INSERT grants, RLS on leads)
+
+-- 0) uuid generation used by the leads table primary key.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- 1) The app's application form sends these columns, but they were never
---    created on public.clients, so every submission failed with PGRST204.
+--    created on public.clients (an earlier attempt created lowercase
+--    "cardiologs"/"posinglogs"), so every submission failed with PGRST204.
+--    NOTE: "cardioLogs" and "posingLogs" are camelCase in the app and MUST
+--    stay double-quoted — unquoted identifiers fold to lowercase in Postgres.
 ALTER TABLE public.clients
   ADD COLUMN IF NOT EXISTS checkins            jsonb DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS cardioLogs         jsonb DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS posingLogs         jsonb DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS "cardioLogs"       jsonb DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS "posingLogs"       jsonb DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS communication      jsonb DEFAULT '{"messages":[]}'::jsonb,
   ADD COLUMN IF NOT EXISTS payments           jsonb DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS progress           jsonb DEFAULT '{}'::jsonb;
 
 -- 2) Allow anonymous visitors to SUBMIT the public application form.
 --    (Insert-only: anon still cannot read, update, or delete clients.)
+GRANT INSERT ON public.clients TO anon;
 DROP POLICY IF EXISTS "Public can submit applications" ON public.clients;
 CREATE POLICY "Public can submit applications"
   ON public.clients
@@ -29,6 +36,10 @@ CREATE TABLE IF NOT EXISTS public.leads (
   source     text NOT NULL DEFAULT 'gut-health-blueprint'
 );
 
+-- RLS must be explicitly enabled on a new table or the policy below is moot.
+ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
+
+GRANT INSERT ON public.leads TO anon;
 DROP POLICY IF EXISTS "Public can join lead magnet" ON public.leads;
 CREATE POLICY "Public can join lead magnet"
   ON public.leads
