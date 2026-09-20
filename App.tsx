@@ -6,7 +6,7 @@ import ClientPortal from './components/ClientPortal';
 import { supabase, isSupabaseConfigured, type ClientInsert, type ClientUpdate } from './services/supabaseClient.ts';
 import type { Client, SiteContent } from './types.ts';
 import type { Session } from '@supabase/supabase-js';
-import { Button, Spinner, Card } from './components/ui/common';
+import { Button, Spinner, Card, Input } from './components/ui/common';
 
 const coachEmail = "rippedcityinc@mail.com";
 const siteContent: SiteContent = {
@@ -20,6 +20,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [isCoach, setIsCoach] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -32,7 +33,8 @@ function App() {
         setIsLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY') setIsRecovering(true);
         setSession(session);
     });
 
@@ -141,6 +143,9 @@ function App() {
     if (isLoading) {
       return <div className="min-h-screen flex items-center justify-center"><Spinner /></div>;
     }
+    if (isRecovering) {
+      return <SetNewPasswordForm onDone={async () => { setIsRecovering(false); await handleLogout(); }} />;
+    }
     if (!session) {
         return <LandingPage siteContent={siteContent} />;
     }
@@ -166,5 +171,58 @@ function App() {
     </div>
   );
 }
+
+// Shown when the user lands from a Supabase password-recovery email link.
+const SetNewPasswordForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
+  const [pw1, setPw1] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (pw1.length < 8) { setError('Use at least 8 characters.'); return; }
+    if (pw1 !== pw2) { setError('Passwords do not match.'); return; }
+    setSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pw1 });
+      if (error) throw error;
+      setDone(true);
+    } catch (err: any) {
+      setError(err.message || 'Could not update password.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        {done ? (
+          <div className="text-center py-6">
+            <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-5 text-2xl text-white">
+              <i className="fa-solid fa-check"></i>
+            </div>
+            <h2 className="text-2xl font-black text-white uppercase italic mb-3">Password Updated</h2>
+            <p className="text-gray-400 mb-6">You're all set. Log in with your new password.</p>
+            <Button onClick={onDone} className="w-full">Back to Login</Button>
+          </div>
+        ) : (
+          <>
+            <h2 className="text-2xl font-black text-center text-white mb-6 uppercase italic">Set New Password</h2>
+            <form onSubmit={submit} className="space-y-6">
+              <Input label="New Password" type="password" value={pw1} onChange={e => setPw1(e.target.value)} required placeholder="At least 8 characters" />
+              <Input label="Confirm Password" type="password" value={pw2} onChange={e => setPw2(e.target.value)} required placeholder="Type it again" />
+              <Button type="submit" className="w-full" disabled={saving}>{saving ? <Spinner /> : 'Update Password'}</Button>
+            </form>
+            {error && <p className="text-red-400 text-sm text-center mt-4 font-bold">{error}</p>}
+          </>
+        )}
+      </Card>
+    </div>
+  );
+};
 
 export default App;
