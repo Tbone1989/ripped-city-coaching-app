@@ -6,6 +6,7 @@ import { Button } from './ui/common.tsx';
 import { DailyBriefingIcon, UsersIcon, ProtocolIcon, FinancialsIcon, SettingsIcon, IntakeIcon } from './ui/Icons.tsx';
 import ClientList from './ClientList.tsx';
 import ClientDetail from './ClientDetail.tsx';
+import LeadsList from './LeadsList.tsx';
 import DailyBriefing from './DailyBriefing.tsx';
 import WellnessProtocols from './WellnessProtocols.tsx';
 import FinancialsDashboard from './FinancialsDashboard.tsx';
@@ -48,6 +49,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, clients, onUpdateClient
         return <DailyBriefing clients={clients} />;
       case Tool.Clients:
         return <ClientList clients={clients} onSelectClient={handleSelectClient} onAddClient={onAddClient} />;
+      case Tool.Leads:
+        return <LeadsList />;
       case Tool.Intake:
         return <ClientIntake onAddClient={onAddClient} />;
       case Tool.Protocols:
@@ -77,6 +80,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, clients, onUpdateClient
             return `Your AI-powered assistant coach. Get a quick summary of client progress and actionable insights.`;
         case Tool.Clients:
             return `Your central hub for client management. All data is now live from your Supabase database.`;
+        case Tool.Leads:
+            return `Everyone who grabbed the free Gut Health Blueprint. Your email list lives here.`;
         case Tool.Intake:
             return `Onboard new prospects by syncing submissions from your client intake form.`;
         case Tool.Protocols:
@@ -94,11 +99,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, clients, onUpdateClient
   const tools = [
     { name: Tool.DailyBriefing, icon: <DailyBriefingIcon /> },
     { name: Tool.Clients, icon: <UsersIcon /> },
+    { name: Tool.Leads, icon: <UsersIcon /> },
     { name: Tool.Intake, icon: <IntakeIcon /> },
     { name: Tool.Financials, icon: <FinancialsIcon /> },
     { name: Tool.Protocols, icon: <ProtocolIcon /> },
     { name: Tool.Settings, icon: <SettingsIcon /> },
   ];
+
+  const prospectCount = clients.filter(c => c.status === 'prospect').length;
 
   return (
     <div className="flex min-h-screen">
@@ -119,6 +127,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, clients, onUpdateClient
               >
                 <span className="text-lg">{tool.icon}</span>
                 <span className="ml-4 font-semibold hidden md:block">{tool.name}</span>
+                {tool.name === Tool.Clients && prospectCount > 0 && (
+                  <span className="ml-2 hidden md:inline-flex text-xs font-bold bg-purple-600 text-white rounded-full px-2 py-0.5">{prospectCount}</span>
+                )}
               </button>
             ))}
           </nav>
