@@ -8,13 +8,26 @@ interface ClientListProps {
   clients: Client[];
   onSelectClient: (clientId: string) => void;
   onAddClient: (client: ClientInsert) => Promise<void>;
+  onUpdateClient: (client: Client) => Promise<void>;
+  onCreatePortalLogin: (client: Client) => Promise<void>;
 }
 
-const ClientList: React.FC<ClientListProps> = ({ clients, onSelectClient, onAddClient }) => {
+const ClientList: React.FC<ClientListProps> = ({ clients, onSelectClient, onAddClient, onUpdateClient, onCreatePortalLogin }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [newClientStatus, setNewClientStatus] = useState<'natural' | 'enhanced'>('natural');
+  const [activatingId, setActivatingId] = useState<string | null>(null);
+
+  // F9: flip a prospect to active client status in one action.
+  const handleActivate = async (client: Client) => {
+    setActivatingId(client.id);
+    try {
+      await onUpdateClient({ ...client, status: 'active' });
+    } finally {
+      setActivatingId(null);
+    }
+  };
 
 
   const handleAddClient = async (e: React.FormEvent) => {
@@ -127,7 +140,30 @@ const ClientList: React.FC<ClientListProps> = ({ clients, onSelectClient, onAddC
                           {(client.profile?.status?.charAt(0).toUpperCase() + client.profile?.status?.slice(1)) || 'N/A'}                        </span>
                     </div>
                 </div>
-                 <Button variant="secondary" className="w-full mt-6" onClick={(e) => { e.stopPropagation(); onSelectClient(client.id); }}>
+                 <div className="flex gap-2 mt-6">
+                    {client.status === 'prospect' && (
+                        <Button
+                            variant="secondary"
+                            className="flex-1 !px-2 text-sm"
+                            disabled={activatingId === client.id}
+                            onClick={(e) => { e.stopPropagation(); handleActivate(client); }}
+                            title="Flip this prospect to active client"
+                        >
+                            <i className="fa-solid fa-bolt mr-1"></i>
+                            {activatingId === client.id ? 'Activating...' : 'Activate'}
+                        </Button>
+                    )}
+                    <Button
+                        variant="secondary"
+                        className="flex-1 !px-2 text-sm"
+                        onClick={(e) => { e.stopPropagation(); onCreatePortalLogin(client); }}
+                        title="Email them a magic login link for the client portal"
+                    >
+                        <i className="fa-solid fa-key mr-1"></i>
+                        Portal login
+                    </Button>
+                 </div>
+                 <Button variant="secondary" className="w-full mt-2" onClick={(e) => { e.stopPropagation(); onSelectClient(client.id); }}>
                     View Dashboard
                     <i className="fa-solid fa-arrow-right ml-2"></i>
                 </Button>

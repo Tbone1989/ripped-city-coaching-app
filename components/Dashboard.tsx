@@ -12,7 +12,7 @@ import WellnessProtocols from './WellnessProtocols.tsx';
 import FinancialsDashboard from './FinancialsDashboard.tsx';
 import Settings from './Settings.tsx';
 import ClientIntake from './ClientIntake.tsx';
-import { type ClientInsert } from '../services/supabaseClient.ts';
+import { supabase, type ClientInsert } from '../services/supabaseClient.ts';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -24,6 +24,8 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, clients, onUpdateClient, onAddClient }) => {
   const [activeView, setActiveView] = useState<Tool>(Tool.DailyBriefing);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  // F7: result message for "Create portal login" (success or failure).
+  const [portalMsg, setPortalMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const handleSelectClient = (clientId: string) => {
     setSelectedClientId(clientId);
@@ -35,20 +37,41 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, clients, onUpdateClient
 
   const selectedClient = clients.find(c => c.id === selectedClientId);
 
-  const handleLoginAsClient = async (client: Client) => {
-      alert(`This feature is for development demonstration.\n\nTo view as this client, please log out and then log back in using their credentials:\nEmail: ${client.email}\n(You can set/reset their password in your Supabase dashboard under Authentication > Users.)`);
+  // F7: one-click portal login. Creates the Supabase auth user for the
+  // client's email if needed and emails them a magic login link.
+  // signInWithOtp never moves the coach's own session, so the coach stays
+  // logged in. If the user already exists, they simply get a fresh link.
+  const handleCreatePortalLogin = async (client: Client) => {
+    setPortalMsg(null);
+    try {
+      if (!supabase) throw new Error('Backend not configured.');
+      const { error } = await supabase.auth.signInWithOtp({
+        email: client.email,
+        options: { emailRedirectTo: 'https://ripped-city-coaching-app.vercel.app/' },
+      });
+      if (error) throw error;
+      setPortalMsg({
+        ok: true,
+        text: `Login link sent to ${client.email}. They'll land in their portal after clicking it — no password needed.`,
+      });
+    } catch (e: any) {
+      setPortalMsg({
+        ok: false,
+        text: `Couldn't send the login link to ${client.email}: ${e?.message || 'unknown error'}`,
+      });
+    }
   };
 
   const renderContent = () => {
     if (selectedClientId && selectedClient) {
-      return <ClientDetail client={selectedClient} onBack={handleBackToList} onUpdateClient={onUpdateClient} onLoginAsClient={() => handleLoginAsClient(selectedClient)} />;
+      return <ClientDetail client={selectedClient} onBack={handleBackToList} onUpdateClient={onUpdateClient} onCreatePortalLogin={() => handleCreatePortalLogin(selectedClient)} />;
     }
 
     switch (activeView) {
       case Tool.DailyBriefing:
         return <DailyBriefing clients={clients} />;
       case Tool.Clients:
-        return <ClientList clients={clients} onSelectClient={handleSelectClient} onAddClient={onAddClient} />;
+        return <ClientList clients={clients} onSelectClient={handleSelectClient} onAddClient={onAddClient} onUpdateClient={onUpdateClient} onCreatePortalLogin={handleCreatePortalLogin} />;
       case Tool.Leads:
         return <LeadsList />;
       case Tool.Intake:
@@ -144,6 +167,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, clients, onUpdateClient
         <p className="text-gray-400 mb-8">
             {getHeaderDescription()}
         </p>
+        {portalMsg && (
+          <div className={`mb-6 p-4 rounded-lg border text-sm font-semibold flex items-start gap-3 ${portalMsg.ok ? 'bg-green-900/40 border-green-700 text-green-300' : 'bg-red-900/40 border-red-700 text-red-300'}`}>
+            <i className={`fa-solid ${portalMsg.ok ? 'fa-circle-check' : 'fa-triangle-exclamation'} mt-0.5`}></i>
+            <span className="flex-1">{portalMsg.text}</span>
+            <button onClick={() => setPortalMsg(null)} className="text-gray-400 hover:text-white"><i className="fa-solid fa-times"></i></button>
+          </div>
+        )}
         {renderContent()}
       </main>
     </div>

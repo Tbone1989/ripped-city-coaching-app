@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient.ts';
-import { Card, Input, Button, Spinner } from './ui/common.tsx';
+import { Card, Input, Button, Spinner, TextArea } from './ui/common.tsx';
+import { AGREEMENT_PREFERENCE_KEY, DEFAULT_AGREEMENT_TEXT } from '../services/agreement.ts';
 
 const Settings: React.FC = () => {
   const [stripePubKey, setStripePubKey] = useState('');
   const [googleSheetUrl, setGoogleSheetUrl] = useState('');
   const [intakeFormUrl, setIntakeFormUrl] = useState('');
   const [notifEmail, setNotifEmail] = useState('');
+  // F8a: editable coaching agreement (seeded DRAFT, editable by the coach).
+  const [agreementText, setAgreementText] = useState(DEFAULT_AGREEMENT_TEXT);
+  const [agreementSaving, setAgreementSaving] = useState(false);
+  const [agreementSaved, setAgreementSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [saveSuccess, setSaveSuccess] = useState('');
@@ -19,13 +24,14 @@ const Settings: React.FC = () => {
         const { data } = await (supabase as any)
           .from('preferences')
           .select('key, value')
-          .in('key', ['stripe_pub_key', 'google_sheet_url', 'intake_form_url', 'notification_email']);
+          .in('key', ['stripe_pub_key', 'google_sheet_url', 'intake_form_url', 'notification_email', AGREEMENT_PREFERENCE_KEY]);
         if (data) {
           data.forEach((row: { key: string; value: string }) => {
             if (row.key === 'stripe_pub_key') setStripePubKey(row.value || '');
             if (row.key === 'google_sheet_url') setGoogleSheetUrl(row.value || '');
             if (row.key === 'intake_form_url') setIntakeFormUrl(row.value || '');
             if (row.key === 'notification_email') setNotifEmail(row.value || '');
+            if (row.key === AGREEMENT_PREFERENCE_KEY && row.value) setAgreementText(row.value);
           });
         }
       } catch (e) { /* silent */ }
@@ -49,6 +55,20 @@ const Settings: React.FC = () => {
       setTimeout(() => setSaveSuccess(''), 3000);
     } catch (e: any) { setSaveError(e.message); }
     setIsSaving(false);
+  };
+
+  const handleSaveAgreement = async () => {
+    setAgreementSaving(true);
+    setAgreementSaved(false);
+    setSaveError('');
+    try {
+      await upsertPref(AGREEMENT_PREFERENCE_KEY, agreementText);
+      setAgreementSaved(true);
+      setTimeout(() => setAgreementSaved(false), 3000);
+    } catch (e: any) {
+      setSaveError(e.message);
+    }
+    setAgreementSaving(false);
   };
 
   if (isLoading) {
@@ -80,6 +100,31 @@ const Settings: React.FC = () => {
           <Button onClick={() => handleSave('notification_email', notifEmail, 'Notification email')} disabled={isSaving || !notifEmail}>
             {isSaving ? <Spinner /> : <><i className="fa-solid fa-save mr-2"></i>Save Email</>}
           </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="text-xl font-semibold text-white mb-2">
+          <i className="fa-solid fa-file-signature mr-2 text-red-500"></i>Coaching Agreement{' '}
+          <span className="text-xs font-bold bg-yellow-500/20 text-yellow-300 py-1 px-2 rounded-full align-middle">DRAFT</span>
+        </h3>
+        <p className="text-gray-400 mb-1">This text is shown to clients in their portal before payment features unlock. They must check the box and accept before continuing.</p>
+        <p className="text-yellow-400/90 text-xs mb-4 font-semibold">Draft for your approval — this is not legal advice. Edit it freely, then approve the final wording.</p>
+        <div className="space-y-4">
+          <TextArea
+            label="Agreement text"
+            id="coaching-agreement"
+            value={agreementText}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setAgreementText(e.target.value)}
+            rows={18}
+            className="font-mono !text-xs"
+          />
+          <div className="flex items-center gap-4">
+            <Button onClick={handleSaveAgreement} disabled={agreementSaving || !agreementText.trim()}>
+              {agreementSaving ? <Spinner /> : <><i className="fa-solid fa-save mr-2"></i>Save Agreement</>}
+            </Button>
+            {agreementSaved && <span className="text-green-400 text-sm font-semibold"><i className="fa-solid fa-circle-check mr-2"></i>Agreement saved.</span>}
+          </div>
         </div>
       </Card>
 

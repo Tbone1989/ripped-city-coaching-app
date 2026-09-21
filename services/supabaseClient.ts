@@ -17,6 +17,7 @@ export type ClientRow = {
   goal: string;
   status: 'prospect' | 'active' | 'inactive';
   paymentStatus?: 'unpaid' | 'paid';
+  agreementAcceptedAt?: string | null;
   profile: Json;
   intakeData: Json;
   progress: Json;
@@ -25,8 +26,12 @@ export type ClientRow = {
   communication: Json;
   bloodworkHistory: Json;
   clientTestimonials: Json;
-  bloodDonationStatus: Json;
-  holisticHealth: Json;
+  bloodDonationStatus?: Json;
+  holisticHealth?: Json;
+  // Added by migration 2026-09-21; nullable columns, so optional here.
+  checkins?: Json;
+  cardioLogs?: Json;
+  posingLogs?: Json;
 };
 
 // Define explicit Insert and Update types to reduce TS compiler complexity
@@ -48,11 +53,13 @@ export type Database = {
         Row: ClientRow;
         Insert: ClientInsert;
         Update: ClientUpdate;
+        Relationships: [];
       };
       leads: {
         Row: LeadRow;
         Insert: { email: string; source?: string | null };
         Update: Partial<{ email: string; source?: string | null }>;
+        Relationships: [];
       };
     };
     Views: {

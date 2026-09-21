@@ -21,6 +21,9 @@ function App() {
   const [clients, setClients] = useState<Client[]>([]);
   const [isCoach, setIsCoach] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
+  // F6: tracks whether the client-row lookup for a logged-in non-coach user
+  // has finished, so we can tell "still loading" apart from "no portal".
+  const [clientLookupDone, setClientLookupDone] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -44,8 +47,6 @@ function App() {
   useEffect(() => {
     if(session?.user) {
         // Simple logic to determine role. In a real app, this might come from user_metadata.
-        39
-          'tbone1989@gmail.com'
         setIsCoach(session.user.email === coachEmail);
     } else {
         setIsCoach(false);
@@ -61,18 +62,31 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setClientLookupDone(true);
+      return;
+    }
     if (isCoach) {
       getClients();
+      setClientLookupDone(true);
     } else {
       // If a client is logged in, you might fetch only their data
       if (session?.user) {
-        supabase.from('clients').select('*').eq('email', session.user.email).maybeSingle().then(({data}) => {
-          if (data) {
-            setClients([data as unknown as Client]);
-          }
+        setClientLookupDone(false);
+        // Supabase's query builder returns a PromiseLike (not a real Promise),
+        // so wrap it in Promise.resolve() to get .finally().
+        Promise.resolve(
+          supabase.from('clients').select('*').eq('email', session.user.email).maybeSingle().then(({data}) => {
+            if (data) {
+              setClients([data as unknown as Client]);
+            }
+          })
+        ).finally(() => {
+          setClientLookupDone(true);
         });
       } else {
          setClients([]);
+         setClientLookupDone(true);
       }
     }
   }, [isCoach, getClients, session]);
@@ -155,12 +169,29 @@ function App() {
     if (loggedInClient) {
         return <ClientPortal client={loggedInClient} onLogout={handleLogout} onUpdateClient={handleUpdateClient} />;
     }
-    // Fallback while client data might be loading or if not found
+    // Still waiting on the client-row lookup — genuine loading state.
+    if (!clientLookupDone) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center text-center p-4">
+                <Spinner />
+                <p className="mt-4 text-gray-400">Loading your portal...</p>
+                 <Button onClick={handleLogout} variant="secondary" className="mt-6">Logout</Button>
+            </div>
+        );
+    }
+    // F6: lookup finished and there is no matching client row — friendly
+    // dead-end panel instead of an eternal spinner.
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center text-center p-4">
-            <Spinner />
-            <p className="mt-4 text-gray-400">Loading your portal...</p>
-             <Button onClick={handleLogout} variant="secondary" className="mt-6">Logout</Button>
+        <div className="min-h-screen flex items-center justify-center p-4">
+            <Card className="max-w-md text-center">
+                <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-5 text-2xl text-gray-400">
+                    <i className="fa-solid fa-user-slash"></i>
+                </div>
+                <h2 className="text-2xl font-black text-white uppercase italic mb-3">No Portal Found</h2>
+                <p className="text-gray-300 mb-2">No coaching portal found for this email yet.</p>
+                <p className="text-gray-500 text-sm mb-6">If you just applied, you'll get access once you're onboarded.</p>
+                <Button onClick={handleLogout} variant="secondary" className="w-full">Logout</Button>
+            </Card>
         </div>
     );
   }

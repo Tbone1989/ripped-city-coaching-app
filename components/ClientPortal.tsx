@@ -2,6 +2,8 @@ import React, { useState, FormEvent, useRef, useEffect } from 'react';
 import type { Client, BloodworkSubmission, MealPlan, WorkoutPlan, ClientTestimonial, BloodDonationInfo } from '../types.ts';
 import { Button, Card, TextArea, Tabs, Input, Select, Spinner } from './ui/common.tsx';
 import { extractTextFromImage } from '../services/geminiService.ts';
+import { supabase } from '../services/supabaseClient.ts';
+import { loadAgreementText } from '../services/agreement.ts';
 import MealPlanDisplay from './shared/MealPlanDisplay.tsx';
 import WorkoutPlanDisplay from './shared/WorkoutPlanDisplay.tsx';
 
@@ -520,9 +522,84 @@ const ClientReviewForm: React.FC<{ client: Client, onUpdateClient: (client: Clie
 };
 
 
+// F8: the client must accept the coaching agreement (checkbox + timestamp)
+// before the rest of the portal unlocks. Text is the coach-editable version
+// from Settings, falling back to the seeded DRAFT.
+const AgreementSection: React.FC<{ client: Client, onUpdateClient: (client: Client) => Promise<void>, onAccepted: () => void }> = ({ client, onUpdateClient, onAccepted }) => {
+    const [text, setText] = useState('Loading agreement...');
+    const [checked, setChecked] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        loadAgreementText(supabase).then(setText);
+    }, []);
+
+    const accepted = !!client.agreementAcceptedAt;
+
+    const handleAccept = async () => {
+        if (!checked || accepted) return;
+        setSaving(true);
+        setError('');
+        try {
+            await onUpdateClient({ ...client, agreementAcceptedAt: new Date().toISOString() });
+            onAccepted();
+        } catch (e: any) {
+            setError(e?.message || 'Could not save your acceptance. Please try again.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (accepted) {
+        return (
+            <div className="mt-8">
+                <Card className="bg-green-900/20 border-green-800 text-center py-8">
+                    <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-5 text-2xl text-white">
+                        <i className="fa-solid fa-check"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Agreement Accepted</h3>
+                    <p className="text-gray-400 mb-6">You accepted the coaching agreement on {new Date(client.agreementAcceptedAt as string).toLocaleString()}.</p>
+                    <Button onClick={onAccepted} variant="secondary">Continue to My Plans <i className="fa-solid fa-arrow-right ml-2"></i></Button>
+                    <details className="mt-6 text-left">
+                        <summary className="cursor-pointer text-sm text-gray-400 hover:text-white font-semibold">View the agreement text</summary>
+                        <pre className="whitespace-pre-wrap font-sans text-xs bg-gray-900/50 p-4 rounded-md mt-3 text-gray-300 max-h-96 overflow-y-auto">{text}</pre>
+                    </details>
+                </Card>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-8">
+            <Card>
+                <h3 className="text-xl font-bold text-white mb-2">
+                    <i className="fa-solid fa-file-signature mr-2 text-red-500"></i>Coaching Agreement
+                </h3>
+                <p className="text-gray-400 text-sm mb-4">Please read this carefully. Your portal unlocks after you accept.</p>
+                <pre className="whitespace-pre-wrap font-sans text-sm bg-gray-900/60 border border-gray-700 p-5 rounded-lg text-gray-300 max-h-[50vh] overflow-y-auto mb-6">{text}</pre>
+                <label className="flex items-start gap-3 cursor-pointer mb-6">
+                    <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => setChecked(e.target.checked)}
+                        className="mt-1 w-5 h-5 accent-red-600"
+                    />
+                    <span className="text-gray-200 font-semibold">I have read the coaching agreement above and I agree to its terms.</span>
+                </label>
+                <Button onClick={handleAccept} disabled={!checked || saving} className="w-full sm:w-auto px-10">
+                    {saving ? <Spinner /> : <><i className="fa-solid fa-check mr-2"></i>Accept Agreement</>}
+                </Button>
+                {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
+            </Card>
+        </div>
+    );
+};
+
 const ClientPortal: React.FC<ClientPortalProps> = ({ client, onLogout, onUpdateClient }) => {
-  const TABS = ['My Plans', 'My Profile', 'My Health Uploads', 'Submit Review'];
-  const [activeTab, setActiveTab] = useState(TABS[0]);
+  const TABS = ['Agreement', 'My Plans', 'My Profile', 'My Health Uploads', 'Submit Review'];
+  const [activeTab, setActiveTab] = useState(client.agreementAcceptedAt ? TABS[1] : TABS[0]);
+  const agreementAccepted = !!client.agreementAcceptedAt;
   
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 p-4 sm:p-6 md:p-8">
@@ -545,6 +622,15 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ client, onLogout, onUpdateC
       </header>
 
       <main className="max-w-7xl mx-auto">
+        {!agreementAccepted && (
+          <Card className="mb-6 bg-yellow-900/30 border-yellow-700 text-center">
+            <p className="text-yellow-200 font-semibold">
+              <i className="fa-solid fa-file-signature mr-2"></i>
+              One step first: review and accept the coaching agreement below to unlock your portal.
+            </p>
+          </Card>
+        )}
+
         {client.goal === 'Not Set' && (
           <Card className="mb-6 bg-blue-900/40 border-blue-700 text-center">
             <h2 className="text-xl font-bold text-white">Welcome to the Portal!</h2>
@@ -560,6 +646,7 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ client, onLogout, onUpdateC
 
         <Card>
             <Tabs tabs={TABS} activeTab={activeTab} onTabClick={setActiveTab} />
+            {activeTab === 'Agreement' && <AgreementSection client={client} onUpdateClient={onUpdateClient} onAccepted={() => setActiveTab('My Plans')} />}
             {activeTab === 'My Plans' && <ClientPlans client={client} />}
             {activeTab === 'My Profile' && <ClientProfileEditor client={client} onUpdateClient={onUpdateClient} />}
             {activeTab === 'My Health Uploads' && <HealthUploads client={client} onUpdateClient={onUpdateClient} />}

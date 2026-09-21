@@ -9,7 +9,7 @@ interface ClientDetailProps {
   client: Client;
   onBack: () => void;
   onUpdateClient: (client: Client) => Promise<void>;
-  onLoginAsClient: () => void;
+  onCreatePortalLogin: () => void;
 }
 
 const SupplementStackDisplay: React.FC<{ stackData: SupplementStack }> = ({ stackData }) => (
@@ -147,6 +147,16 @@ const ClientProfile: React.FC<{ client: Client }> = ({ client }) => {
                 <div><strong>Name:</strong> {client.name}</div>
                 <div><strong>Email:</strong> {client.email}</div>
                 <div><strong className="text-red-400">Main Goal:</strong> {client.goal}</div>
+                <div>
+                    <strong>Coaching Agreement:</strong>{' '}
+                    {client.agreementAcceptedAt ? (
+                        <span className="bg-green-500/20 text-green-300 font-semibold py-0.5 px-2 rounded">
+                            Accepted {new Date(client.agreementAcceptedAt).toLocaleDateString()}
+                        </span>
+                    ) : (
+                        <span className="bg-yellow-500/20 text-yellow-300 font-semibold py-0.5 px-2 rounded">Not yet accepted</span>
+                    )}
+                </div>
                 <div><strong>Age:</strong> {client.profile.age}</div>
                 <div><strong>Gender:</strong> {client.profile.gender}</div>
                 <div><strong>Weight:</strong> {client.profile.weight} kg</div>
@@ -202,9 +212,17 @@ const ClientOnboarding: React.FC<{ client: Client, onUpdateClient: (client: Clie
     const [payError, setPayError] = useState('');
     const [linkCopied, setLinkCopied] = useState(false);
 
+    // Funnel order: application → conversation → agreement → price.
+    // Payment actions stay locked until the client accepts the coaching agreement.
+    const agreementAccepted = !!client.agreementAcceptedAt;
+
     const handleGeneratePaymentLink = async () => {
         setPayError('');
         setPayLink('');
+        if (!agreementAccepted) {
+            setPayError('Generate a payment link only after the client accepts the coaching agreement.');
+            return;
+        }
         const dollars = parseFloat(payAmount);
         if (!dollars || dollars < 0.5) {
             setPayError('Enter an amount of at least $0.50.');
@@ -255,23 +273,51 @@ const ClientOnboarding: React.FC<{ client: Client, onUpdateClient: (client: Clie
     return (
         <Card className="bg-gray-800/60">
             <h3 className="text-2xl font-semibold text-white mb-2">Onboarding Checklist</h3>
-            <p className="text-gray-400 mb-6">Follow these steps to onboard your new prospect.</p>
+            <p className="text-gray-400 mb-6">Application → conversation → agreement → price. Payment stays locked until the client accepts the coaching agreement.</p>
 
             <div className="space-y-6">
                 <div className="p-4 bg-gray-900/40 rounded-lg border border-gray-700">
                     <div className="flex items-center gap-6">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-600 flex items-center justify-center text-white font-bold text-xl">1</div>
+                        <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${agreementAccepted ? 'bg-green-600' : 'bg-red-600'}`}>1</div>
+                        <div>
+                            <h4 className="font-bold text-lg text-white">Coaching Agreement</h4>
+                            {agreementAccepted ? (
+                                <p className="text-gray-400 text-sm">Accepted {new Date(client.agreementAcceptedAt as string).toLocaleDateString()} — payment steps are unlocked.</p>
+                            ) : (
+                                <p className="text-gray-400 text-sm">Not yet accepted. Have the conversation first, then the client reviews and accepts it in their portal (Agreement section). Payment links stay locked until then.</p>
+                            )}
+                        </div>
+                        {agreementAccepted ? (
+                            <div className="ml-auto text-green-400 font-semibold flex items-center gap-2">
+                                <i className="fa-solid fa-check-circle"></i>
+                                Accepted
+                            </div>
+                        ) : (
+                            <div className="ml-auto text-yellow-300 font-semibold flex items-center gap-2">
+                                <i className="fa-solid fa-hourglass-half"></i>
+                                Awaiting client
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 bg-gray-900/40 rounded-lg border border-gray-700">
+                    <div className="flex items-center gap-6">
+                        <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${agreementAccepted ? 'bg-red-600' : 'bg-gray-600'}`}>2</div>
                         <div>
                             <h4 className="font-bold text-lg text-white">Generate Payment Link</h4>
                             <p className="text-gray-400 text-sm">Create a real Stripe checkout link for the initial consultation or first month. When the client pays, they are marked Paid automatically.</p>
+                            {!agreementAccepted && (
+                                <p className="text-yellow-300 text-sm mt-1"><i className="fa-solid fa-lock mr-2"></i>Locked — available after the client accepts the coaching agreement.</p>
+                            )}
                         </div>
                     </div>
                     <div className="mt-4 flex flex-col sm:flex-row gap-3 sm:items-end">
                         <div className="w-full sm:w-48">
                             <Input label="Amount (USD)" id="pay-amount" type="number" min="0.5" step="0.01" value={payAmount}
-                                onChange={e => setPayAmount(e.target.value)} placeholder="150.00" />
+                                onChange={e => setPayAmount(e.target.value)} placeholder="150.00" disabled={!agreementAccepted} />
                         </div>
-                        <Button onClick={handleGeneratePaymentLink} variant="secondary" disabled={payLoading}>
+                        <Button onClick={handleGeneratePaymentLink} variant="secondary" disabled={payLoading || !agreementAccepted}>
                             {payLoading ? <Spinner /> : <><i className="fa-brands fa-stripe mr-2"></i>Generate Link</>}
                         </Button>
                     </div>
@@ -289,7 +335,7 @@ const ClientOnboarding: React.FC<{ client: Client, onUpdateClient: (client: Clie
                 </div>
 
                 <div className="flex items-center gap-6 p-4 bg-gray-900/40 rounded-lg border border-gray-700">
-                    <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${client.paymentStatus === 'paid' ? 'bg-green-600' : 'bg-red-600'}`}>2</div>
+                    <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${client.paymentStatus === 'paid' ? 'bg-green-600' : 'bg-red-600'}`}>3</div>
                     <div>
                         <h4 className="font-bold text-lg text-white">Confirm Payment</h4>
                         <p className="text-gray-400 text-sm">Stripe marks the client Paid automatically on successful checkout. You can also mark them manually below.</p>
@@ -305,7 +351,7 @@ const ClientOnboarding: React.FC<{ client: Client, onUpdateClient: (client: Clie
                 </div>
                 
                 <div className="flex items-center gap-6 p-4 bg-gray-900/40 rounded-lg border border-gray-700">
-                     <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${client.paymentStatus === 'paid' ? 'bg-red-600' : 'bg-gray-600'}`}>3</div>
+                     <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl ${client.paymentStatus === 'paid' ? 'bg-red-600' : 'bg-gray-600'}`}>4</div>
                     <div>
                         <h4 className="font-bold text-lg text-white">Send Profile Setup Link</h4>
                         <p className="text-gray-400 text-sm">Generate a link for the client to log in, create their password, and fill out their detailed profile information.</p>
@@ -632,7 +678,7 @@ const PlaceholderComponent: React.FC<{title: string}> = ({title}) => (
     </Card>
 );
 
-const ClientDetail: React.FC<ClientDetailProps> = ({ client, onBack, onUpdateClient, onLoginAsClient }) => {
+const ClientDetail: React.FC<ClientDetailProps> = ({ client, onBack, onUpdateClient, onCreatePortalLogin }) => {
     
     if (client.status === 'prospect') {
         return (
@@ -677,9 +723,9 @@ const ClientDetail: React.FC<ClientDetailProps> = ({ client, onBack, onUpdateCli
                     <i className="fa-solid fa-arrow-left mr-2"></i>
                     Back to Client List
                 </Button>
-                <Button onClick={onLoginAsClient}>
-                    <i className="fa-solid fa-eye mr-2"></i>
-                    View as Client
+                <Button onClick={onCreatePortalLogin}>
+                    <i className="fa-solid fa-key mr-2"></i>
+                    Create portal login
                 </Button>
             </div>
             <Card>

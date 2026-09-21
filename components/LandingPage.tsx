@@ -49,6 +49,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
     setShowIntakeModal(true);
   };
 
+  const closeIntakeModal = () => {
+    setShowIntakeModal(false);
+    setIntakeSuccess(false);
+    setIntakeStep(1);
+  };
+
   const COACH_EMAIL = 'rippedcityinc@mail.com';
   const GUT_HEALTH_PDF_URL = '/gut-health-blueprint.pdf';
 
@@ -169,6 +175,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
       checkins: [],
       generatedPlans: { mealPlans: [], workoutPlans: [] },
       payments: [],
+      progress: [],
       communication: { messages: [] },
       bloodworkHistory: [],
       clientTestimonials: [],
@@ -191,11 +198,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
           if (!res.ok) throw new Error(data.error || 'Submission failed. Please try again or email us directly.');
       }
       setIntakeSuccess(true);
-      setTimeout(() => {
-        setShowIntakeModal(false);
-        setIntakeSuccess(false);
-        setIntakeStep(1);
-      }, 3000);
+      // F1: the confirmation panel stays until the prospect dismisses it —
+      // no auto-close timer.
     } catch (err: any) {
       console.error('Application submission failed:', err);
       setIntakeError(err?.message || 'Submission failed. Please try again or email us directly.');
@@ -248,7 +252,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
       {showIntakeModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
           <Card className="w-full max-w-xl relative bg-[#121214] border-gray-800 shadow-2xl overflow-hidden">
-            <button onClick={() => setShowIntakeModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white z-10"><i className="fa-solid fa-times text-xl"></i></button>
+            <button onClick={closeIntakeModal} className="absolute top-4 right-4 text-gray-500 hover:text-white z-10"><i className="fa-solid fa-times text-xl"></i></button>
             
             {!intakeSuccess && (
                 <div className="absolute top-0 left-0 w-full h-1 bg-gray-800">
@@ -258,11 +262,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
 
             {intakeSuccess ? (
               <div className="text-center py-12 px-6">
-                <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl text-white shadow-lg shadow-green-900/50 animate-bounce">
+                <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl text-white shadow-lg shadow-green-900/50">
                     <i className="fa-solid fa-check"></i>
                 </div>
-                <h3 className="text-3xl font-black text-white mb-4 uppercase tracking-tighter italic">Application Sent!</h3>
-                <p className="text-gray-400">Tyrone will review your biological profile and protocols. Reach out via email within 24 hours to schedule your strategy call.</p>
+                <h3 className="text-3xl font-black text-white mb-4 uppercase tracking-tighter italic">Application received.</h3>
+                <p className="text-gray-400 mb-2 font-semibold">What happens next:</p>
+                <p className="text-gray-300 mb-8">Tyrone reviews every application personally and will reach out to you directly.</p>
+                <Button onClick={closeIntakeModal} className="px-10 uppercase tracking-wide font-bold">Done</Button>
               </div>
             ) : (
               <div className="p-2 sm:p-4">
@@ -550,20 +556,35 @@ const LandingPage: React.FC<LandingPageProps> = ({ siteContent, onDemoLogin }) =
           </div>
         </section>
 
-        <section id="login" className="py-24 px-4 bg-gradient-to-b from-gray-800 to-black">
-          <div className="max-w-md mx-auto">
-            <Card className="bg-gray-900 border-gray-700 shadow-2xl">
-              <h2 className="text-2xl font-black text-center text-white mb-6 uppercase italic">Client Login</h2>
+        {/* F5: approved login concept — bold athletic entry, one form, same routing. */}
+        <section id="login" className="py-24 px-4 bg-black relative overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute -top-24 -right-24 w-96 h-96 bg-red-600/20 blur-3xl rounded-full"></div>
+            <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-red-900/20 blur-3xl rounded-full"></div>
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+          </div>
+          <div className="max-w-md mx-auto relative z-10">
+            <div className="text-center mb-8">
+              <p className="text-red-500 font-black tracking-[0.3em] uppercase text-xs mb-3">
+                <i className="fa-solid fa-dumbbell mr-2"></i>Members Area
+              </p>
+              <h2 className="text-5xl md:text-6xl font-black text-white uppercase italic tracking-tighter leading-none">
+                Let's Get<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-800">To Work.</span>
+              </h2>
+              <div className="w-24 h-1 bg-red-600 mx-auto mt-5"></div>
+              <p className="text-gray-400 mt-4 text-sm uppercase tracking-widest font-bold">Client &amp; coach login</p>
+            </div>
+            <Card className="bg-[#121214] border-gray-800 shadow-2xl">
               <form onSubmit={handleLogin} className="space-y-6">
-                <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="you@example.com" />
                 <div>
                     <label className="block text-sm font-medium text-gray-400 mb-1">Password</label>
                     <div className="relative">
-                        <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-4 py-2 pr-10 focus:ring-2 focus:ring-red-500 outline-none" required />
+                        <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-4 py-2 pr-10 focus:ring-2 focus:ring-red-500 outline-none" required placeholder="Your password" />
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"><i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i></button>
                     </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>{isLoading ? <Spinner /> : 'Access Portal'}</Button>
+                <Button type="submit" className="w-full uppercase tracking-wide font-bold" disabled={isLoading}>{isLoading ? <Spinner /> : <>Enter <i className="fa-solid fa-arrow-right ml-2"></i></>}</Button>
               </form>
               <div className="text-center mt-4">
                 {!showForgotPassword ? (

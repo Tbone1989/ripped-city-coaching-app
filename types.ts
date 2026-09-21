@@ -135,6 +135,19 @@ export interface ClientTestimonial {
   status: 'Pending' | 'Approved' | 'Rejected';
 }
 
+export interface BloodDonationInfo {
+  status: 'Unknown' | 'Eligible' | 'Eligible to Donate' | 'Ineligible - Temporary' | 'Ineligible - Permanent';
+  lastChecked: string;
+  notes: string;
+}
+
+export interface HolisticHealthInfo {
+  sleepQuality: string;
+  stressLevel: string;
+  energyLevel: string;
+  herbalLog: string;
+}
+
 export interface Client {
   id: string;
   created_at: string;
@@ -143,6 +156,8 @@ export interface Client {
   goal: string;
   status: 'prospect' | 'active' | 'inactive';
   paymentStatus?: 'unpaid' | 'paid';
+  /** ISO timestamp of when the client accepted the coaching agreement. Set in the client portal. */
+  agreementAcceptedAt?: string;
   profile: {
     age: string;
     gender: 'male' | 'female';
@@ -177,6 +192,10 @@ export interface Client {
   };
   bloodworkHistory: BloodworkSubmission[];
   clientTestimonials: ClientTestimonial[];
+  /** Blood donation eligibility tracking (optional; older rows may not have it). */
+  bloodDonationStatus?: BloodDonationInfo;
+  /** Holistic health log (optional; older rows may not have it). */
+  holisticHealth?: HolisticHealthInfo;
 }
 
 export interface ProtocolDetailSection {

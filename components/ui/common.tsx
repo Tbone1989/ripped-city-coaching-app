@@ -19,14 +19,16 @@ export const Button: React.FC<ButtonProps> = ({ children, className, variant = '
 };
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label: string;
+  label?: string;
 }
 
 export const Input: React.FC<InputProps> = ({ label, id, ...props }) => (
   <div>
-    <label htmlFor={id} className="block text-sm font-medium text-gray-400 mb-1">
-      {label}
-    </label>
+    {label && (
+      <label htmlFor={id} className="block text-sm font-medium text-gray-400 mb-1">
+        {label}
+      </label>
+    )}
     <input
       id={id}
       className="w-full bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition"

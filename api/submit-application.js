@@ -14,6 +14,10 @@
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
+// Application emails (Resend) are OFF unless RESEND_API_KEY is set in Vercel.
+// See api/lib/email.js. Sending never fails the submission.
+import { sendApplicationEmails } from './lib/email.js';
+
 // Per-instance sliding-window rate limiter (one layer of defense; Vercel may
 // run several instances, so this is a hurdle, not a vault).
 const hits = new Map(); // ip -> number[]
@@ -128,6 +132,14 @@ export default async function handler(req, res) {
     console.error('Application insert error:', e);
     res.status(502).json({ error: 'Could not save your application. Please try again or email us directly.' });
     return;
+  }
+
+  // F2/F3: confirmation email to the prospect + notification to the coach.
+  // No-op when Resend isn't configured. Never fails the submission.
+  try {
+    await sendApplicationEmails({ name, email, goal: String(client.goal || '') });
+  } catch (e) {
+    console.error('Application email failed (submission still saved):', e);
   }
 
   res.status(200).json({ ok: true });
