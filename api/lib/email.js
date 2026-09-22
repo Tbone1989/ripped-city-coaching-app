@@ -15,7 +15,9 @@
 // have verified in Resend. The default onboarding@resend.dev only delivers
 // to the Resend account owner's inbox.
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+// Accept the all-caps name AND the mixed-case "Resend_API_KEY" that was set
+// in Vercel, so a naming mismatch can't silently keep email switched off.
+const RESEND_API_KEY = process.env.RESEND_API_KEY || process.env.Resend_API_KEY || '';
 const EMAIL_ENABLED = !!RESEND_API_KEY && process.env.EMAIL_ENABLED !== 'false';
 const FROM = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
