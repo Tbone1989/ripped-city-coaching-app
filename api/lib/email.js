@@ -6,7 +6,8 @@
 //
 // When the key lands, two emails light up automatically:
 //   1. Confirmation to the prospect ("Application received" + what happens next)
-//   2. Notification to the coach (rippedcityinc@mail.com) with a dashboard link
+//   2. Notification to the coach (COACH_EMAIL env var, default tbone0189@gmail.com)
+//      with a dashboard link
 //
 // Uses the Resend REST API directly (fetch) so no new npm dependency is
 // needed and the build never breaks when the key is absent.
@@ -21,7 +22,9 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || process.env.Resend_API_KEY 
 const EMAIL_ENABLED = !!RESEND_API_KEY && process.env.EMAIL_ENABLED !== 'false';
 const FROM = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
-export const COACH_EMAIL = 'rippedcityinc@mail.com';
+// Coach notification address. Override with the COACH_EMAIL env var in Vercel;
+// defaults to Tyrone's Gmail so every application lands in his inbox.
+export const COACH_EMAIL = process.env.COACH_EMAIL || 'tbone0189@gmail.com';
 const DASHBOARD_URL = 'https://ripped-city-coaching-app.vercel.app/';
 
 export function isEmailEnabled() {
@@ -91,6 +94,32 @@ export async function sendApplicationEmails({ name, email, goal }) {
     to: COACH_EMAIL,
     subject: `New coaching application: ${name}`,
     html: coachNotificationHtml({ name, email, goal }),
+  });
+  return { sent: true };
+}
+
+function leadNotificationHtml({ email, source }) {
+  const safe = (v) => escapeHtml(v) || '—';
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #111;">
+      <h2 style="color: #b91c1c;">New lead</h2>
+      <p>Someone just grabbed the free guide on your coaching site.</p>
+      <p><strong>Email:</strong> ${safe(email)}</p>
+      <p><strong>Source:</strong> ${safe(source)}</p>
+      <p><a href="${DASHBOARD_URL}" style="color: #b91c1c; font-weight: bold;">Open the dashboard</a> to see all leads.</p>
+    </div>`;
+}
+
+// Heads-up to the coach when someone grabs the free lead magnet.
+// Safe no-op when email is disabled. Never fails the capture.
+export async function sendLeadNotification({ email, source }) {
+  if (!EMAIL_ENABLED) {
+    return { sent: false, reason: 'email-disabled' };
+  }
+  await sendEmail({
+    to: COACH_EMAIL,
+    subject: `New lead: ${email}`,
+    html: leadNotificationHtml({ email, source }),
   });
   return { sent: true };
 }
