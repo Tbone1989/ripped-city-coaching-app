@@ -13,6 +13,10 @@
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
+// Lead-magnet heads-up email to the coach (Resend). OFF unless RESEND_API_KEY
+// is set in Vercel. Sending never fails the capture.
+import { sendLeadNotification } from './lib/email.js';
+
 const hits = new Map(); // ip -> number[]
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_PER_WINDOW = 10;
@@ -113,6 +117,13 @@ export default async function handler(req, res) {
     console.error('Lead insert error:', e);
     res.status(200).json({ ok: true, captured: false });
     return;
+  }
+
+  // Notify the coach. Never fails the capture.
+  try {
+    await sendLeadNotification({ email, source: String(body.source || 'website') });
+  } catch (e) {
+    console.error('Lead notification failed (lead still saved):', e);
   }
 
   res.status(200).json({ ok: true, captured: true });
