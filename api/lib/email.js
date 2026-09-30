@@ -5,9 +5,10 @@
 // even when a key is present.
 //
 // When the key lands, two emails light up automatically:
-//   1. Confirmation to the prospect ("Application received" + what happens next)
-//   2. Notification to the coach (COACH_EMAIL env var, default tbone0189@gmail.com)
-//      with a dashboard link
+//   1. Notification to the coach (COACH_EMAIL env var, default tbone0189@gmail.com)
+//      with a dashboard link — sent FIRST and independently, so a prospect-mail
+//      failure can never suppress the coach's heads-up
+//   2. Confirmation to the prospect ("Application received" + what happens next)
 //
 // Uses the Resend REST API directly (fetch) so no new npm dependency is
 // needed and the build never breaks when the key is absent.
@@ -79,23 +80,40 @@ function coachNotificationHtml({ name, email, goal }) {
 }
 
 // Sends both application emails. Safe no-op when email is disabled.
-// Never throws to the caller for disabled state; throws on Resend failure
-// so the caller can log it (callers must not fail the submission over email).
+// The coach notification goes FIRST and each send is fully isolated:
+// with Resend's onboarding@resend.dev test sender, the prospect
+// confirmation to a non-owner address fails — that must never prevent
+// the coach's heads-up. Never throws; callers must not fail the
+// submission over email.
 export async function sendApplicationEmails({ name, email, goal }) {
   if (!EMAIL_ENABLED) {
     return { sent: false, reason: 'email-disabled' };
   }
-  await sendEmail({
-    to: email,
-    subject: 'Application received — Ripped City Coaching',
-    html: prospectConfirmationHtml(name),
-  });
-  await sendEmail({
-    to: COACH_EMAIL,
-    subject: `New coaching application: ${name}`,
-    html: coachNotificationHtml({ name, email, goal }),
-  });
-  return { sent: true };
+  const [coach, prospect] = await Promise.allSettled([
+    // Coach heads-up first — this is the critical notification.
+    sendEmail({
+      to: COACH_EMAIL,
+      subject: `New coaching application: ${name}`,
+      html: coachNotificationHtml({ name, email, goal }),
+    }),
+    // Prospect confirmation — best-effort until a sending domain is verified.
+    sendEmail({
+      to: email,
+      subject: 'Application received — Ripped City Coaching',
+      html: prospectConfirmationHtml(name),
+    }),
+  ]);
+  if (coach.status === 'rejected') {
+    console.error('Coach application notification failed:', coach.reason && coach.reason.message ? coach.reason.message : coach.reason);
+  }
+  if (prospect.status === 'rejected') {
+    console.error('Prospect confirmation failed:', prospect.reason && prospect.reason.message ? prospect.reason.message : prospect.reason);
+  }
+  return {
+    sent: coach.status === 'fulfilled',
+    coach: coach.status,
+    prospect: prospect.status,
+  };
 }
 
 function leadNotificationHtml({ email, source }) {
